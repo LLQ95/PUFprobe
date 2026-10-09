@@ -15,6 +15,7 @@ keywords:
   - genome annotation
   - hypothetical proteins
   - protein function prediction
+  - protein language models
 preferred-citation:
   type: report
   title: "Bacterial genome hypothetical protein functional prediction: PUFprobe algorithm and software design report"

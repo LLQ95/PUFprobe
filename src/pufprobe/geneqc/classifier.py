@@ -15,7 +15,8 @@ independent signals below:
 * and, when a nucleotide sequence is available, a robust GC-content z-score,
   GC skew and internal stop codons.
 
-The ribosome-binding-site check requires an upstream intergenic sequence that isnormally absent from GFF3/GBK-only inputs; rather than faking it, the reason
+The ribosome-binding-site check requires an upstream intergenic sequence that is
+normally absent from GFF3/GBK-only inputs; rather than faking it, the reason
 list always records ``"RBS: not evaluated"``.
 """
 

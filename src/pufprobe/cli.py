@@ -52,6 +52,9 @@ def cli(
         if help_requested:
             ctx.obj = None
             return
+        if ctx.invoked_subcommand == "doctor":
+            ctx.obj = Context(None, load_config(config_path))
+            return
         raise click.UsageError("Missing option '--workdir' / '-w'.")
     config = load_config(config_path)
     wd = WorkDir(workdir, cpu=cpu, threads=threads, log_level=log_level)
