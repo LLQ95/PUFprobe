@@ -1,0 +1,132 @@
+"""rank stage pipeline.
+
+Contract implemented here:
+
+1. Load CDS records, families, search_evidence.json and context_evidence.json.
+2. Collect candidate terms per protein from evidence. Fuse channel scores:
+   - when --weights points to a trained fusion model it is loaded lazily
+     (sklearn joblib/pickle) and used for learning-to-rank scoring;
+   - otherwise config rank.rule_weights give transparent rule scores, and the
+     output notes that default rule weights rather than learned weights were
+     used.
+3. Apply the independent-channel agreement policy: a term needs evidence from
+   at least rank.require_independent_groups distinct evidence groups to reach
+   high confidence; single-channel terms are capped below the threshold.
+4. Calibrate raw scores through pufprobe.rank.calibrate (temperature scaling
+   and isotonic regression; sklearn used when present, pool-adjacent-violators
+   fallback otherwise). Without a held-out calibration set the calibration is
+   identity and is labelled as such.
+5. For families with no anchored term, pufprobe.rank.priority computes a
+   wet-lab priority score from structural novelty, predicted pockets, clonal
+   specificity, AMR/virulence neighbourhood and small-protein status.
+
+Outputs:
+- 07_rank/predictions.json  list of ProteinPrediction dicts
+- 07_rank/calibration.json  method, ECE placeholder and per-ontology notes
+- 07_rank/priorities.tsv    unanchored family ranking
+Completion marker written for rank.
+"""
+
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from pufprobe.io_utils import read_json, write_json
+from pufprobe.logging_utils import get_logger
+from pufprobe.models import (
+    Family,
+    Sample,
+    families_from_dicts,
+    to_dict,
+)
+from pufprobe.rank.calibrate import build_calibrator
+from pufprobe.rank.fuse import build_evidence_map, cds_record_from_row, fuse_proteins, load_weights_model
+from pufprobe.rank.priority import compute_family_priority
+from pufprobe.workdir import WorkDir
+
+log = get_logger("rank.pipeline")
+
+
+def run(
+    workdir: WorkDir,
+    config: Dict[str, Any],
+    weights: Optional[Path] = None,
+) -> None:
+    records_path = workdir.path("prepare", "cds_records.json")
+    samples_path = workdir.path("prepare", "samples.json")
+    families_path = workdir.path("cluster", "families.json")
+    search_ev_path = workdir.path("search", "search_evidence.json")
+    context_ev_path = workdir.path("context", "context_evidence.json")
+
+    records = [cds_record_from_row(row) for row in read_json(records_path)]  # type: ignore[arg-type]
+    samples: List[Sample] = (
+        [Sample(**row) for row in read_json(samples_path)]  # type: ignore[arg-type]
+        if samples_path.exists()
+        else []
+    )
+    families: List[Family] = (
+        families_from_dicts(read_json(families_path))  # type: ignore[arg-type]
+        if families_path.exists()
+        else []
+    )
+
+    evidence_map = build_evidence_map(search_ev_path, context_ev_path)
+    log.info(
+        "evidence loaded: %d proteins with evidence "
+        "(search=%s, context=%s)",
+        sum(1 for evs in evidence_map.values() if evs),
+        search_ev_path.name if search_ev_path.exists() else "missing",
+        context_ev_path.name if context_ev_path.exists() else "missing",
+    )
+
+    model, fusion_note = load_weights_model(weights)
+    predictions = fuse_proteins(records, evidence_map, config, weights_model=model)
+
+    # Calibration: no held-out calibration set is produced by the upstream
+    # stages, so the default identity calibrator is used.
+    calibrator, cal_meta = build_calibrator(None)
+    for pred in predictions:
+        raw_scores = [t.raw_score for t in pred.terms]
+        calibrated = calibrator.transform(raw_scores)
+        for term, conf in zip(pred.terms, calibrated):
+            term.confidence = float(conf)
+
+    # Families with no anchored term get a wet-lab priority score.
+    anchored_keys = {pred.key for pred in predictions if pred.terms}
+    total_samples = max(len(samples), len({r.sample_id for r in records}), 1)
+    priority_rows = []
+    for family in families:
+        if any(member in anchored_keys for member in family.members):
+            continue
+        rep_evs = evidence_map.get(family.representative_key, [])
+        score, reasons = compute_family_priority(family, rep_evs, total_samples, config)
+        family.priority_score = score
+        family.priority_reasons = reasons
+        priority_rows.append((family.family_id, score, reasons))
+    priority_rows.sort(key=lambda row: row[1], reverse=True)
+
+    write_json(workdir.path("rank", "predictions.json"), [to_dict(p) for p in predictions])
+
+    calibration_payload = {
+        **cal_meta,
+        "fusion": fusion_note,
+        "high_confidence": config["rank"]["high_confidence"],
+        "require_independent_groups": config["rank"]["require_independent_groups"],
+        "n_predictions": len(predictions),
+        "n_terms": sum(len(p.terms) for p in predictions),
+        "n_unanchored_families": len(priority_rows),
+    }
+    write_json(workdir.path("rank", "calibration.json"), calibration_payload)
+
+    priorities_path = workdir.path("rank", "priorities.tsv")
+    with priorities_path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write("family_id\tpriority_score\treasons\n")
+        for fid, score, reasons in priority_rows:
+            handle.write(f"{fid}\t{score:.4f}\t{'; '.join(reasons)}\n")
+
+    workdir.mark_complete("rank")
+    log.info(
+        "rank done: %d predictions, %d terms, %d unanchored families prioritised.",
+        len(predictions),
+        sum(len(p.terms) for p in predictions),
+        len(priority_rows),
+    )
