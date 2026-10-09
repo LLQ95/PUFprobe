@@ -1,0 +1,35 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# PUFprobe working directories (analysis outputs, never commit)
+workdir/
+work/
+_shots/
+
+# Downloaded databases and model weights (large, fetched via docs/server_setup.md)
+databases/
+db/
+models/
+weights/
+*.npz
+!examples/**/*.npz
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

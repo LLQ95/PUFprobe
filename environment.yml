@@ -1,0 +1,24 @@
+name: pufprobe
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.9
+  - pip
+  - click>=8.0
+  - numpy>=1.21
+  - pytest
+  # Sequence search / clustering
+  - mmseqs2>=13
+  # Structure search
+  - foldseek>=8
+  # Profile HMM remote homology
+  - hhsuite
+  # Ligand-binding pocket prediction
+  - p2rank
+  # Optional: scikit-learn for calibration / fusion
+  - scikit-learn>=1.1
+  - pip:
+      # ESM-2 / ESMFold (large; CUDA build recommended on GPU hosts, see docs/server_setup.md)
+      # - torch>=2.0
+      - -e .

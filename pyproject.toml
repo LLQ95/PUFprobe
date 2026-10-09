@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pufprobe"
+version = "0.1.0"
+description = "Second-stage functional inference for hypothetical proteins in bacterial genomes"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "LLQ95" }]
+keywords = [
+    "bioinformatics",
+    "genome annotation",
+    "hypothetical proteins",
+    "protein function prediction",
+    "protein language models",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Intended Audience :: Science/Research",
+]
+dependencies = [
+    "click>=8.0",
+    "numpy>=1.21",
+]
+
+[project.optional-dependencies]
+ml = [
+    "torch>=2.0",
+    "scikit-learn>=1.1",
+]
+cluster = [
+    "igraph>=0.10",
+    "leidenalg>=0.9",
+]
+full = [
+    "torch>=2.0",
+    "scikit-learn>=1.1",
+    "igraph>=0.10",
+    "leidenalg>=0.9",
+]
+test = [
+    "pytest>=7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/LLQ95/PUFprobe"
+Repository = "https://github.com/LLQ95/PUFprobe"
+Issues = "https://github.com/LLQ95/PUFprobe/issues"
+Changelog = "https://github.com/LLQ95/PUFprobe/blob/main/CHANGELOG.md"
+
+[project.scripts]
+pufprobe = "pufprobe.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

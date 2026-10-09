@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use PUFprobe, please cite both the software and the design report."
+title: "PUFprobe: second-stage functional inference for hypothetical proteins in bacterial genomes"
+version: 0.1.0
+date-released: 2026-10-09
+license: MIT
+repository-code: "https://github.com/LLQ95/PUFprobe"
+url: "https://github.com/LLQ95/PUFprobe"
+type: software
+authors:
+  - name: "LLQ95"
+keywords:
+  - bioinformatics
+  - bacterial genomes
+  - genome annotation
+  - hypothetical proteins
+  - protein function prediction
+preferred-citation:
+  type: report
+  title: "Bacterial genome hypothetical protein functional prediction: PUFprobe algorithm and software design report"
+  authors:
+    - name: "LLQ95"
+  year: 2026
+  url: "https://github.com/LLQ95/PUFprobe"
