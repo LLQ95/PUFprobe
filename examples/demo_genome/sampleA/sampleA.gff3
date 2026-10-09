@@ -1,0 +1,28 @@
+##gff-version 3
+##sequence-region contig1 1 10000
+contig1	demo	gene	400	1750	.	+	.	ID=gene_SA_0001;locus_tag=SA_0001
+contig1	demo	CDS	400	1750	.	+	0	ID=cds_SA_0001;Parent=gene_SA_0001;locus_tag=SA_0001;product=DNA gyrase subunit A
+contig1	demo	gene	1800	3600	.	+	.	ID=gene_SA_0002;locus_tag=SA_0002
+contig1	demo	CDS	1800	3600	.	+	0	ID=cds_SA_0002;Parent=gene_SA_0002;locus_tag=SA_0002;product=DNA-directed RNA polymerase subunit beta
+contig1	demo	gene	3650	4850	.	+	.	ID=gene_SA_0003;locus_tag=SA_0003
+contig1	demo	CDS	3650	4850	.	+	0	ID=cds_SA_0003;Parent=gene_SA_0003;locus_tag=SA_0003;product=elongation factor Tu
+contig1	demo	gene	4900	5400	.	+	.	ID=gene_SA_0004;locus_tag=SA_0004
+contig1	demo	CDS	4900	5400	.	+	0	ID=cds_SA_0004;Parent=gene_SA_0004;locus_tag=SA_0004;product=30S ribosomal protein S5
+contig1	demo	gene	5450	6200	.	+	.	ID=gene_SA_0005;locus_tag=SA_0005
+contig1	demo	CDS	5450	6200	.	+	0	ID=cds_SA_0005;Parent=gene_SA_0005;locus_tag=SA_0005;product=ABC transporter ATP-binding protein
+contig1	demo	gene	6250	6850	.	+	.	ID=gene_SA_0006;locus_tag=SA_0006
+contig1	demo	CDS	6250	6850	.	+	0	ID=cds_SA_0006;Parent=gene_SA_0006;locus_tag=SA_0006;product=superoxide dismutase
+contig1	demo	gene	6900	7350	.	+	.	ID=gene_SA_0007;locus_tag=SA_0007
+contig1	demo	CDS	6900	7350	.	+	0	ID=cds_SA_0007;Parent=gene_SA_0007;locus_tag=SA_0007;product=hypothetical protein
+contig1	demo	gene	7400	7760	.	+	.	ID=gene_SA_0008;locus_tag=SA_0008
+contig1	demo	CDS	7400	7760	.	+	0	ID=cds_SA_0008;Parent=gene_SA_0008;locus_tag=SA_0008;product=DUF1620 domain-containing protein
+contig1	demo	gene	8400	9300	.	+	.	ID=gene_SA_0009;locus_tag=SA_0009
+contig1	demo	CDS	8400	9300	.	+	0	ID=cds_SA_0009;Parent=gene_SA_0009;locus_tag=SA_0009;product=transposase
+contig1	demo	gene	9350	9620	.	+	.	ID=gene_SA_0010;locus_tag=SA_0010
+contig1	demo	CDS	9350	9620	.	+	0	ID=cds_SA_0010;Parent=gene_SA_0010;locus_tag=SA_0010;product=toxin-antitoxin system toxin RelE
+contig1	demo	gene	9680	10730	.	+	.	ID=gene_SA_0011;locus_tag=SA_0011
+contig1	demo	CDS	9680	10730	.	+	0	ID=cds_SA_0011;Parent=gene_SA_0011;locus_tag=SA_0011;product=DNA polymerase III subunit alpha
+contig1	demo	gene	7800	7860	.	+	.	ID=gene_SA_0012;locus_tag=SA_0012
+contig1	demo	CDS	7800	7860	.	+	0	ID=cds_SA_0012;Parent=gene_SA_0012;locus_tag=SA_0012;product=hypothetical protein
+contig1	demo	gene	8000	8300	.	+	.	ID=gene_SA_0013;locus_tag=SA_0013
+contig1	demo	CDS	8000	8300	.	+	0	ID=cds_SA_0013;Parent=gene_SA_0013;locus_tag=SA_0013;product=hypothetical protein
