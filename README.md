@@ -132,7 +132,7 @@ work/
 ├── 01_qc/        qc_summary.json
 ├── 02_embed/     embeddings.npz, manifest.json
 ├── 03_cluster/    families.json, clusters.tsv, representatives.faa
-├── 04_fold/      structures/, fold_quality.tsv
+├── 04_fold/       structures/, fold_quality.tsv
 ├── 05_search/     *_raw.tsv, search_evidence.json
 ├── 06_context/    neighbours.tsv, phyloprofiles.tsv, context_evidence.json
 ├── 07_rank/       predictions.json, calibration.json, priorities.tsv
@@ -183,4 +183,3 @@ Chinese step-by-step runbook:
 ## License
 
 PUFprobe is released under the MIT License. See [LICENSE](LICENSE).
-
