@@ -42,10 +42,10 @@
 方式一，用 scp 传压缩包（最简单，不依赖服务器上的 GitHub 认证）：
 
 ```bash
-scp PUFprobe-v0.2.1.zip liushiwei@biflab-1:/data/liushiwei/
+scp PUFprobe-v0.2.2.zip liushiwei@biflab-1:/data/liushiwei/
 ssh liushiwei@biflab-1
 cd /data/liushiwei
-unzip -o PUFprobe-v0.2.1.zip -d PUFprobe
+unzip -o PUFprobe-v0.2.2.zip -d PUFprobe
 cd PUFprobe
 ls server/
 ```
@@ -134,9 +134,9 @@ df -h /data/liushiwei
 TIER=A bash server/01_download_dbs.sh
 ```
 
-档位 A 内容：MMseqs2 的 Swiss-Prot 序列库、Foldseek 的 PDB 结构库（约 10–15 GB，磁盘紧张可在配置里设 `SMOKE_FOLDSEEK=0` 跳过）、CARD 蛋白同源模型 FASTA、VFDB 蛋白集 A、ESM-2 35M 小模型权重。全部是冒烟规模，总占用约 15–20 GB。
+档位 A 内容：MMseqs2 的 Swiss-Prot 序列库（新版 MMseqs2 中库名为 `UniProtKB/Swiss-Prot`；内置下载器不可用时自动从 UniProt 官方 FASTA 下载并用 createdb/createindex 自建，约 90 MB 压缩、建库后数 GB）、Foldseek 的 PDB 结构库（约 10–15 GB，磁盘紧张可在配置里设 `SMOKE_FOLDSEEK=0` 跳过）、CARD 蛋白同源模型 FASTA（从官方 `https://card.mcmaster.ca/latest/data` 数据包中提取，旧的 `/download/6/...fasta` 直链已失效）、VFDB 蛋白集 A、ESM-2 35M 小模型权重（预加载失败只告警，冒烟用回退特征不需要它）。全部是冒烟规模，总占用约 15–20 GB。
 
-预期屏幕输出：依次出现 `Building MMseqs2 database 'Swiss-Prot'`、`Building Foldseek database 'PDB'`、`Downloading CARD`、`Downloading VFDB`、`Pre-loading esm2_t12_35M_UR50D`，末尾打印 `$DBDIR` 下的文件清单与 `Done`。
+预期屏幕输出：依次出现 `Building MMseqs2 database 'UniProtKB/Swiss-Prot'`（若内置下载器不可用会接着打印 `building from UniProt FASTA` 与 createdb/createindex）、`Building Foldseek database 'PDB'`、`Downloading CARD canonical bundle`、`Downloading VFDB`、`Pre-loading esm2_t12_35M_UR50D`，末尾打印 `$DBDIR` 下的文件清单与 `Done`。
 
 成功判据：
 
@@ -149,7 +149,7 @@ grep -c '^>' /data/liushiwei/PUFprobe/dbs/vfdb/VFDB_setA_pro.fas
 
 前两个 `ls` 不报错；CARD 记录数应为数千条，VFDB 应为数百条。
 
-这一步最容易因网络失败：Foldseek 与 MMseqs2 的库由官方下载器从境外站点拉取，国内网络可能超时。脚本在失败时会给出 MMseqs2 的 mmseqs.com tarball 备选；Foldseek 若持续失败，可在能访问外网的机器上执行同样的 `foldseek databases PDB <prefix> <tmp>` 再把整个前缀目录拷回 `dbs/dbdir/`。下载脚本支持断点续跑（`wget -c` 与完成标记），中断后重跑即可。
+这一步最容易因网络失败。MMseqs2 已内置 UniProt 官方 FASTA 自建回退（`ftp.uniprot.org`，已验证可访问），不再依赖已失效的 mmseqs.com tarball；Foldseek 若持续失败，可在能访问外网的机器上执行同样的 `foldseek databases PDB <prefix> <tmp>` 再把整个前缀目录拷回 `dbs/dbdir/`。下载脚本支持断点续跑（`wget -c` 与完成标记），中断后重跑即可。注意旧版失败可能在 `dbs/tmp/` 留下 `swissprot.tar.gz` 这类 HTML 假文件，新版脚本会自动删除；若仍异常可手动 `rm -rf dbs/tmp/*` 后重跑。
 
 ---
 
