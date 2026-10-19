@@ -17,10 +17,13 @@ LOG_DIR="$REPO_ROOT/server/logs"
 # 国内镜像（如在境外服务器运行，可改为官方源）
 CONDA_MIRROR_HOST=https://mirrors.tuna.tsinghua.edu.cn/anaconda   # 备选：https://mirrors.bfsu.edu.cn/anaconda
 PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple            # 备选：https://mirrors.aliyun.com/pypi/simple
-# torch 轮子源；默认官方，国内不通时可改为阿里云镜像：
-#   https://mirrors.aliyun.com/pytorch-wheels/cu121/ 或 https://mirror.sjtu.edu.cn/pytorch-wheels/cu121
-TORCH_INDEX_URL_GPU=https://download.pytorch.org/whl/cu121
-TORCH_INDEX_URL_CPU=https://download.pytorch.org/whl/cpu
+# torch 轮子源由 00_setup_env.sh 依次尝试（GPU：阿里云→上海交大→官方 cu121；
+# CPU 同理），一般无需手动设置；网络特殊时可在运行脚本前 export 覆盖，例如：
+#   export TORCH_INDEX_URL_GPU=https://mirrors.aliyun.com/pytorch-wheels/cu121/
+TORCH_INDEX_URL_GPU=https://mirrors.aliyun.com/pytorch-wheels/cu121/
+TORCH_INDEX_URL_CPU=https://mirrors.aliyun.com/pytorch-wheels/cpu/
+# P2Rank 便携版版本（bioconda 不提供 p2rank，由脚本从 GitHub Release 下载）
+P2RANK_VERSION=2.5.1
 
 # ---------------------------------------------------------------------------
 # 已有环境（严禁改动，只通过 conda run 调用）

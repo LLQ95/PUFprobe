@@ -91,7 +91,18 @@ def hhsearch() -> ToolInfo:
 
 @lru_cache(maxsize=None)
 def p2rank() -> ToolInfo:
-    # P2Rank is commonly launched as a script named prank or p2rank.
+    # P2Rank is not distributed on bioconda; the setup script installs the
+    # portable GitHub release under thirdparty/p2rank (launcher: distro/prank).
+    # Resolution order: P2RANK_HOME, repo-local thirdparty, then PATH.
+    candidates = []
+    env_home = os.environ.get("P2RANK_HOME")
+    if env_home:
+        candidates.append(os.path.join(env_home, "distro", "prank"))
+    repo_root = Path(__file__).resolve().parents[2]
+    candidates.append(str(repo_root / "thirdparty" / "p2rank" / "distro" / "prank"))
+    for candidate in candidates:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return ToolInfo(name="p2rank", available=True, path=candidate)
     path = shutil.which("p2rank") or shutil.which("prank")
     if path is None:
         return ToolInfo(name="p2rank", available=False)
