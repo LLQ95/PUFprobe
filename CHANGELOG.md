@@ -3,6 +3,46 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.2.0] - 2026-10-19
+
+Server-hardening release for the computational deployment phase.
+
+### Added
+
+- server/ directory with a turnkey deployment bundle for the biflab-1 cluster:
+  00_setup_env.sh, 01_download_dbs.sh (two tiers), 02_annotate.sh,
+  03_run_pufprobe.sh, 04_summary.sh, summarize.py,
+  configs/server_config.yaml and the Chinese step-by-step runbook
+  README_runbook.md
+- All server scripts are LF, `set -euo pipefail`, logged, idempotent and
+  resumable; paths, threads, mirrors and database tiers are overridable
+  through environment variables
+- Automatic GPU detection (nvidia-smi) with separate CUDA and CPU torch paths,
+  and China-accessible mirror configuration for conda, pip and database
+  downloads
+- Real-format regression tests for Prokka .gff (PROKKA_ ids, embedded
+  ##FASTA section, percent-encoded products) and Bakta .gff3 outputs, plus
+  .gbff discovery coverage
+
+### Changed
+
+- File discovery now recognises the Bakta .gbff extension and *.genbank
+  alongside .gff/.gff3/.gbk
+- MMseqs2 database resolver accepts the swissprot, uniref90, uniref50 and
+  uniref100 prefixes in addition to uniref/mmseqs_db, matching the two-tier
+  database layout used by the server scripts
+- HHblits database detection recognises _hhm.ffdata, _a3m.ffdata and
+  _msa.ffdata ffindex markers instead of relying on a .hhr file
+- Annotation source detection reads the GFF column-2 source field
+  case-insensitively, so lowercase "bakta" sources classify correctly
+- External tool lookup also searches CONDA_PREFIX/bin and the mamba root
+  prefix, which covers conda run invocation without an activated shell
+
+### Fixed
+
+- Families that could not be folded because the ESMFold backend is absent are
+  recorded as "skipped" (missing tool) rather than "failed" (folding error)
+
 ## [0.1.0] - 2026-10-09
 
 First phase release.

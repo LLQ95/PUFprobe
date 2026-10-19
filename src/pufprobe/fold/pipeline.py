@@ -88,9 +88,9 @@ def run(
                 try:
                     pdb_text, plddt, mean_pae = fold_sequence(fam.representative_seq)
                 except ModelUnavailable as exc:
-                    logger.warning("ESMFold unavailable for %s (%s); marked failed.",
+                    logger.warning("ESMFold unavailable for %s (%s); marked skipped.",
                                    fam.family_id, exc)
-                    status = "failed"
+                    status = "skipped"
                 except Exception as exc:  # noqa: BLE001 - per-family isolation
                     logger.warning("Folding failed for %s (%s); marked failed.", fam.family_id, exc)
                     status = "failed"

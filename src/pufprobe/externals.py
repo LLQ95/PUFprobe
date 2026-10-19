@@ -6,10 +6,12 @@ evidence channel but never crashes the run.
 """
 
 import importlib.util
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 
@@ -21,8 +23,34 @@ class ToolInfo:
     version: Optional[str] = None
 
 
-def detect_tool(name: str, version_args: tuple[str, ...] = ("--version",)) -> ToolInfo:
+def _extra_search_dirs() -> list[str]:
+    """Common bin directories that hold conda/mamba-installed tools.
+
+    These cover the case where pufprobe runs inside a conda environment but the
+    binary was installed into an environment that is not currently activated
+    on PATH (operators typically invoke pufprobe with ``conda run -n``).
+    """
+    dirs: list[str] = []
+    for env_var in ("CONDA_PREFIX", "MAMBA_ROOT_PREFIX"):
+        prefix = os.environ.get(env_var)
+        if prefix:
+            dirs.append(str(Path(prefix) / "bin"))
+    return dirs
+
+
+def _which(name: str) -> Optional[str]:
     path = shutil.which(name)
+    if path is not None:
+        return path
+    for directory in _extra_search_dirs():
+        candidate = Path(directory) / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
+def detect_tool(name: str, version_args: tuple[str, ...] = ("--version",)) -> ToolInfo:
+    path = _which(name)
     if path is None:
         return ToolInfo(name=name, available=False)
     version: Optional[str] = None

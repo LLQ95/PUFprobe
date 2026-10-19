@@ -184,6 +184,7 @@ def detect_source(path: Path) -> str:
     path = Path(path)
     header_comments: List[str] = []
     prokka_id = False
+    source_column: List[str] = []
     try:
         with path.open("r", encoding="utf-8", errors="replace") as handle:
             for raw_line in handle:
@@ -195,15 +196,21 @@ def detect_source(path: Path) -> str:
                     continue
                 fields = line.split("\t")
                 if len(fields) >= 9:
+                    source_column.append(fields[1].strip().lower())
                     attr = fields[8]
                     if "PROKKA_" in attr:
                         prokka_id = True
+                    if len(source_column) >= 30:
+                        break
     except OSError:
         return "generic"
 
     blob = "\n".join(header_comments)
-    if "bakta" in blob:
+    source_blob = " ".join(source_column)
+    if "bakta" in blob or source_blob == "bakta" or (
+        source_column and all(s == "bakta" for s in source_column)
+    ):
         return "bakta"
-    if prokka_id or "prokka" in blob:
+    if prokka_id or "prokka" in blob or "prokka" in source_blob:
         return "prokka"
     return "generic"
