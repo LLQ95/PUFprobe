@@ -132,7 +132,7 @@ work/
 ├── 01_qc/        qc_summary.json
 ├── 02_embed/     embeddings.npz, manifest.json
 ├── 03_cluster/    families.json, clusters.tsv, representatives.faa
-├── 04_fold/       structures/, fold_quality.tsv
+├── 04_fold/      structures/, fold_quality.tsv
 ├── 05_search/     *_raw.tsv, search_evidence.json
 ├── 06_context/    neighbours.tsv, phyloprofiles.tsv, context_evidence.json
 ├── 07_rank/       predictions.json, calibration.json, priorities.tsv
@@ -167,6 +167,18 @@ pytest
 The test suite contains unit tests for every stage and an end-to-end smoke
 test that runs the complete CPU fallback pipeline on the bundled examples,
 without any external binaries or GPUs.
+
+## Server deployment
+
+For running PUFprobe on a Linux HPC node (Bakta/Prokka in existing conda
+environments, MMseqs2/Foldseek/HH-suite databases, GPU or CPU), the
+`server/` directory provides an idempotent, resumable script bundle and a
+Chinese step-by-step runbook:
+
+- `server/README_runbook.md` — full walkthrough from code sync to full run
+- `server/configs/server_config.yaml` — paths, threads, mirrors, database tiers
+- `00_setup_env.sh` → `01_download_dbs.sh` → `02_annotate.sh` →
+  `03_run_pufprobe.sh` → `04_summary.sh`
 
 ## License
 
