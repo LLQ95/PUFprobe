@@ -45,6 +45,8 @@ RESULTS_DIR="$REPO_ROOT/results"
 
 # 数据库
 DB_ROOT=/data/liushiwei/PUFprobe/dbs
+# UniProt 参考 FASTA 根（MMseqs2 内置下载失败时用于自建库；官方源慢可改镜像）
+UNIPROT_BASE="https://ftp.uniprot.org/pub/databases/uniprot/current_release"
 DBDIR="$DB_ROOT/dbdir"        # mmseqs/foldseek/hhblits 库前缀所在目录
 CARD_FA="$DB_ROOT/card/protein_fasta_protein_homolog_model.fasta"
 VFDB_FA="$DB_ROOT/vfdb/VFDB_setA_pro.fas"
