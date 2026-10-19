@@ -44,10 +44,16 @@ def run_hhblits_search(
         return {}, None
 
     db_path = dbdir / _DB_NAME if dbdir else None
-    if db_path is None or not Path(str(db_path) + ".hhr").exists() \
-            and not Path(str(db_path) + "_hhm.ffdata").exists():
-        logger.warning("No hhblits database at dbdir/%s; skipping hhblits channel. %s",
-                       _DB_NAME, INSTALL_HINT)
+    db_markers = ("_hhm.ffdata", "_a3m.ffdata", "_msa.ffdata")
+    if db_path is None or not any(
+        Path(str(db_path) + marker).exists() for marker in db_markers
+    ):
+        logger.warning(
+            "No hh-suite database at dbdir/%s (looked for files %s); skipping hhblits channel. %s",
+            _DB_NAME,
+            ", ".join(f"hhblits_db{m}" for m in db_markers),
+            INSTALL_HINT,
+        )
         return {}, None
 
     exe = info.path or "hhblits"

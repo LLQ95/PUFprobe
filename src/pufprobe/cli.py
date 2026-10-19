@@ -207,10 +207,10 @@ def _collect_inputs(inputs: List[Path], input_list: Optional[Path]) -> List[Path
         if not path.exists():
             raise click.UsageError(f"Input path does not exist: {path}")
         if path.is_dir():
-            for gff in sorted(path.rglob("*.gff*")):
-                expanded.append(gff)
-            for gbk in sorted(path.rglob("*.gbk*")):
-                expanded.append(gbk)
+            for pattern in ("*.gff", "*.gff3"):
+                expanded.extend(sorted(path.rglob(pattern)))
+            for pattern in ("*.gbk", "*.gbff", "*.genbank"):
+                expanded.extend(sorted(path.rglob(pattern)))
             for faa in sorted(path.rglob("*.faa")):
                 expanded.append(faa)
         else:

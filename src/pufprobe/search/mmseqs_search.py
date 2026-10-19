@@ -23,7 +23,7 @@ from pufprobe.models import Evidence, EvidenceChannel
 logger = get_logger(__name__)
 
 INSTALL_HINT = "See docs/server_setup.md for downloading the UniRef MMseqs2 database."
-_DB_CANDIDATES = ("uniref", "mmseqs_db")
+_DB_CANDIDATES = ("uniref90", "uniref50", "uniref100", "uniref", "swissprot", "mmseqs_db")
 
 COLS = "query,target,pident,evalue,qstart,qend,tstart,tend,qcov,tcov,desc"
 
