@@ -42,10 +42,10 @@
 方式一，用 scp 传压缩包（最简单，不依赖服务器上的 GitHub 认证）：
 
 ```bash
-scp PUFprobe-v0.2.0.zip liushiwei@biflab-1:/data/liushiwei/
+scp PUFprobe-v0.2.1.zip liushiwei@biflab-1:/data/liushiwei/
 ssh liushiwei@biflab-1
 cd /data/liushiwei
-unzip PUFprobe-v0.2.0.zip -d PUFprobe
+unzip -o PUFprobe-v0.2.1.zip -d PUFprobe
 cd PUFprobe
 ls server/
 ```
@@ -85,7 +85,7 @@ cd /data/liushiwei/PUFprobe
 bash server/00_setup_env.sh
 ```
 
-这一步做了什么：检测 conda 或 mamba；新建环境 `pufprobe`，从清华 TUNA 的 conda-forge 与 bioconda 频道安装 mmseqs2、foldseek、hhsuite、p2rank、scikit-learn；运行 `nvidia-smi` 检测，按驱动支持的 CUDA 版本装 cu121 或 cu118 的 GPU 版 torch，检测不到 GPU 就装 CPU 版；从清华 PyPI 镜像装 fair-esm；最后 `pip install -e .` 安装本仓库，并执行 `pufprobe doctor`。
+这一步做了什么：检测 conda 或 mamba，把 MAMBA_ROOT_PREFIX 固定到 conda 根目录，避免在当前激活环境下建出嵌套环境；新建环境 `pufprobe`，从清华 TUNA 的 conda-forge 与 bioconda 频道安装 mmseqs2、foldseek、hhsuite、scikit-learn 与 openjdk 17；运行 `nvidia-smi` 检测，按驱动支持的 CUDA 版本装 cu121 或 cu118 的 GPU 版 torch，检测不到 GPU 就装 CPU 版；torch 依次尝试阿里云、上海交大、官方三个轮子源；从清华 PyPI 镜像装 fair-esm；P2Rank 不在 bioconda（该频道没有 p2rank 包），脚本改为从 GitHub Release 下载 2.5.1 便携版到 `thirdparty/p2rank`（需要 Java 17，已随环境安装），下载失败只警告不阻塞，口袋通道会在运行时自动跳过；最后 `pip install -e .` 安装本仓库，并执行 `pufprobe doctor`。
 
 预期屏幕输出：日志依次出现 `Creating conda environment`、`Installing bioinformatics tools`、`Installing torch`、`Installing fair-esm`、`Installing PUFprobe`、`Tool versions`，最后是一段 JSON 形式的 doctor 报告。
 
@@ -117,8 +117,11 @@ bash server/00_setup_env.sh
 
 - conda 找不到：先装 Miniconda。`wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh`，`bash Miniconda3-latest-Linux-x86_64.sh -b`，重新登录后再跑。
 - 清华 conda 频道超时：把 `server_config.yaml` 里的 `CONDA_MIRROR_HOST` 改成 `https://mirrors.bfsu.edu.cn/anaconda` 重跑，已有环境会被复用，不会重复安装。
-- torch 轮子下载失败或超时：脚本会自动回退到官方源再试一次；仍失败时手工指定镜像，例如阿里云 `export TORCH_INDEX_URL_GPU=https://mirrors.aliyun.com/pytorch-wheels/cu121/`（或上海交大 `https://mirror.sjtu.edu.cn/pytorch-wheels/cu121`）后重跑，重跑只补装缺失项。
+- torch 轮子下载失败或超时：脚本会自动依次尝试阿里云、上海交大、官方三个源；三个源都失败时可先跳过（安装不阻塞后续工具的部分），事后用 `conda run -n pufprobe pip install torch --index-url https://mirrors.aliyun.com/pytorch-wheels/cu121/` 补装。
 - 驱动 CUDA 版本低于 11.8：脚本会改装 CPU torch 并在日志中提示；要用 GPU 需管理员更新 NVIDIA 驱动。
+- 环境被建到嵌套路径（如 `anaconda3/envs/checkm/envs/pufprobe`）：这是旧版脚本未固定 MAMBA_ROOT_PREFIX 导致的。v0.2.1 已修复，重跑时会自动删除嵌套环境并改到 `anaconda3/envs/pufprobe`。手工清理命令为 `rm -rf /data/liushiwei/anaconda3/envs/checkm/envs/pufprobe`。
+- 安装 p2rank 时报 `p2rank does not exist (perhaps a typo or a missing channel)`：bioconda 不提供 p2rank，旧脚本误把它列入 conda 安装。v0.2.1 已改为 GitHub Release 便携版安装；若便携版下载失败，口袋通道跳过，不影响其余全部流程。
+- P2Rank 下载失败：脚本已依次尝试 GitHub 直连与两个代理镜像；仍失败时可手动下载 `p2rank_2.5.1.tar.gz`（https://github.com/rdk/p2rank/releases/download/2.5.1/p2rank_2.5.1.tar.gz），解压后将目录重命名为 `/data/liushiwei/PUFprobe/thirdparty/p2rank`，保证存在 `thirdparty/p2rank/distro/prank`。
 - 提示已有环境存在：脚本直接复用；若环境是半成品，可 `conda env remove -n pufprobe` 后重跑，这只影响新建的 pufprobe 环境。
 
 ---
