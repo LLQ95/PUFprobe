@@ -41,6 +41,8 @@ step_done() { [ -f "$MARKERS/$1" ]; }
 export TORCH_HOME
 export OMP_NUM_THREADS="$THREADS"
 export MMSEQS_FORCE_CPU=1
+# UniProt reference FASTA root (override to a mirror if the official host is slow)
+UNIPROT_BASE="${UNIPROT_BASE:-https://ftp.uniprot.org/pub/databases/uniprot/current_release}"
 
 # conda env tools (work without activating the shell)
 CONDA_RUN=(conda run --no-capture-output -n "$PUFPROBE_ENV")
@@ -60,22 +62,32 @@ Re-run this script (resumes) or download on a networked machine and scp to $out.
 # ---------------------------------------------------------------------------
 # MMseqs2 databases
 # ---------------------------------------------------------------------------
-mmseqs_db() { # db_id slug prefix
-    local db_id="$1" slug="$2" prefix="$3"
+# Tries the built-in `mmseqs databases` first; if the bundled download URL is
+# stale (the mmseqs.com tarballs were retired for Swiss-Prot), builds the
+# database from the UniProt reference FASTA with createdb + createindex.
+mmseqs_db() { # db_id slug prefix fasta_url
+    local db_id="$1" slug="$2" prefix="$3" fasta_url="$4"
     local marker="mmseqs_${slug}"
     if step_done "$marker" && [ -f "${prefix}.index" ]; then
         log "MMseqs2 $db_id already present at $prefix"; return 0
     fi
     log "Building MMseqs2 database '$db_id' at $prefix"
+    mkdir -p "$(dirname "$prefix")"
+    rm -f "$MMSEQS_TMP/${slug}.tar.gz" 2>/dev/null || true
     if "${CONDA_RUN[@]}" mmseqs databases "$db_id" "$prefix" "$MMSEQS_TMP" \
-            --threads "$THREADS"; then
-        :
+            --threads "$THREADS" 2> "$MMSEQS_TMP/${slug}_db.err"; then
+        log "  built-in downloader succeeded"
     else
-        log "  built-in downloader failed; falling back to mmseqs.com tarball"
-        local tar="$MMSEQS_TMP/${slug}.tar.gz"
-        download "https://mmseqs.com/databases/${slug}/${slug}.tar.gz" "$tar"
-        mkdir -p "$(dirname "$prefix")"
-        tar xzf "$tar" -C "$(dirname "$prefix")"
+        log "  built-in downloader unavailable; building from UniProt FASTA: $fasta_url"
+        local fasta_gz="$MMSEQS_TMP/${slug}.fasta.gz"
+        local fasta="$MMSEQS_TMP/${slug}.fasta"
+        download "$fasta_url" "$fasta_gz"
+        rm -f "$fasta"
+        gunzip -f "$fasta_gz"
+        [ -s "$fasta" ] || die "decompressed FASTA missing: $fasta"
+        rm -f "${prefix}"* 2>/dev/null || true
+        "${CONDA_RUN[@]}" mmseqs createdb "$fasta" "$prefix" --dbtype 1
+        "${CONDA_RUN[@]}" mmseqs createindex "$prefix" "$MMSEQS_TMP" --threads "$THREADS"
     fi
     [ -f "${prefix}.index" ] || die "MMseqs2 $db_id missing ${prefix}.index after build"
     "${CONDA_RUN[@]}" mmseqs linfo "$prefix" | head -3
@@ -106,8 +118,18 @@ Download manually: foldseek databases '$db_id' <prefix> <tmp> on a networked mac
 # ---------------------------------------------------------------------------
 card_vfdb() {
     if step_done card_vfdb; then log "CARD/VFDB already present"; return 0; fi
-    log "Downloading CARD protein homolog models (FASTA)"
-    download "https://card.mcmaster.ca/download/6/protein_fasta_protein_homolog_model.fasta" "$CARD_FA"
+    log "Downloading CARD canonical bundle (latest/data) ..."
+    local card_bz2="$DB_ROOT/card/card_latest.tar.bz2"
+    download "https://card.mcmaster.ca/latest/data" "$card_bz2"
+    # The legacy /download/6/...fasta link now returns an HTML page; the FASTA
+    # ships inside the canonical tar.bz2 with a flat layout.
+    if ! tar -tjf "$card_bz2" >/dev/null 2>&1; then
+        log "  CARD bundle incomplete; re-downloading once"
+        rm -f "$card_bz2"
+        download "https://card.mcmaster.ca/latest/data" "$card_bz2"
+    fi
+    tar -xjf "$card_bz2" -C "$DB_ROOT/card" ./protein_fasta_protein_homolog_model.fasta
+    [ -s "$CARD_FA" ] || die "CARD FASTA missing after extraction; check $card_bz2"
     log "Downloading VFDB set A protein sequences"
     download "http://www.mgc.ac.cn/VFs/Down/VFDB_setA_pro.fas.gz" "$DB_ROOT/vfdb/VFDB_setA_pro.fas.gz"
     gunzip -f "$DB_ROOT/vfdb/VFDB_setA_pro.fas.gz"
@@ -127,14 +149,18 @@ preload_esm() { # model_name marker
     local model="$1" marker="$2"
     if step_done "$marker"; then log "Weights for $model already cached"; return 0; fi
     log "Pre-loading $model weights into TORCH_HOME=$TORCH_HOME"
-    "${CONDA_RUN[@]}" python - "$model" <<'PY'
+    if "${CONDA_RUN[@]}" python - "$model" <<'PY'
 import sys
 import esm
 name = sys.argv[1]
 esm.pretrained.load_model_and_alphabet(name)
 print(f"preloaded {name}")
 PY
-    done_step "$marker"
+    then
+        done_step "$marker"
+    else
+        log "  WARN: could not preload $model (network to dl.fbaipublicfiles.com). The smoke run does not need it; rerun this script later or let embed fetch it on first use."
+    fi
 }
 
 preload_esmfold() {
@@ -208,7 +234,8 @@ if [ "$TIER" = "A" ]; then
     log "=== TIER A: smoke databases ==="
     log "Free disk at $DB_ROOT (must be >= ~40 GB for tier A):"
     df -h "$DB_ROOT" | tail -1
-    mmseqs_db "Swiss-Prot" swissprot "$DBDIR/swissprot"
+    mmseqs_db "UniProtKB/Swiss-Prot" swissprot "$DBDIR/swissprot" \
+        "${UNIPROT_BASE}/knowledgebase/complete/uniprot_sprot.fasta.gz"
     if [ "$SMOKE_FOLDSEEK" = "1" ]; then
         foldseek_db "PDB" "$DBDIR/foldseek_db" foldseek_smoke
     fi
@@ -223,9 +250,11 @@ elif [ "$TIER" = "B" ]; then
     log "=== TIER B: full databases ==="
     log "Free disk at $DB_ROOT (need ~250 GB without Foldseek full, ~1.5 TB with it):"
     df -h "$DB_ROOT" | tail -1
-    mmseqs_db "UniRef90" uniref90 "$DBDIR/uniref90"
+    mmseqs_db "UniRef90" uniref90 "$DBDIR/uniref90" \
+        "${UNIPROT_BASE}/uniref/uniref90/uniref90.fasta.gz"
     if [ "${DOWNLOAD_UNIREF50:-0}" = "1" ]; then
-        mmseqs_db "UniRef50" uniref50 "$DBDIR/uniref50"
+        mmseqs_db "UniRef50" uniref50 "$DBDIR/uniref50" \
+            "${UNIPROT_BASE}/uniref/uniref50/uniref50.fasta.gz"
     fi
     foldseek_db "$FULL_FOLDSEEK_DB" "$DBDIR/foldseek_db" foldseek_full
     uniref30
