@@ -3,6 +3,27 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.2.2] - 2026-10-19
+
+Hotfix for database download failures on the first real TIER A run.
+
+### Fixed
+
+- The MMseqs2 Swiss-Prot database is requested as `UniProtKB/Swiss-Prot`, the
+  valid name in MMseqs2 v18; the old `Swiss-Prot` name aborted with
+  "Selected database Swiss-Prot was not found"
+- The retired mmseqs.com tarball fallback (which 302-redirects to an HTML
+  page) is replaced by a UniProt FASTA fallback: the script downloads
+  uniprot_sprot / uniref90 / uniref50 FASTA from ftp.uniprot.org and builds
+  the search database with mmseqs createdb + createindex; partial HTML files
+  left in the tmp directory are cleaned automatically
+- CARD no longer uses the legacy /download/6/*.fasta link (now an HTML page);
+  it downloads the canonical https://card.mcmaster.ca/latest/data tar.bz2,
+  validates its integrity and extracts protein_fasta_protein_homolog_model.fasta
+- ESM weight preloading is non-fatal: a network failure only warns, so the
+  smoke run (which uses sequence fallback features) is not blocked
+- server_config.yaml gains an overridable UNIPROT_BASE for mirror substitution
+
 ## [0.2.1] - 2026-10-19
 
 Hotfix for the first real server run of 00_setup_env.sh.
