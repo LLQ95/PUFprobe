@@ -7,6 +7,14 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 Hotfix for database download failures on the first real TIER A run.
 
+### Added
+
+- server/hotfix_tierA.sh: a self-contained, idempotent Tier A database repair
+  script that builds Swiss-Prot from the UniProt FASTA, fetches the CARD
+  canonical bundle and VFDB, and optionally pulls Foldseek PDB and ESM-2
+  weights, writing the same completion markers as 01_download_dbs.sh so the
+  workflow can continue without re-transferring the whole release
+
 ### Fixed
 
 - The MMseqs2 Swiss-Prot database is requested as `UniProtKB/Swiss-Prot`, the
