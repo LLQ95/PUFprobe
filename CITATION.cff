@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use PUFprobe, please cite both the software and the design report."
 title: "PUFprobe: second-stage functional inference for hypothetical proteins in bacterial genomes"
-version: 0.2.0
+version: 0.2.1
 date-released: 2026-10-19
 license: MIT
 repository-code: "https://github.com/LLQ95/PUFprobe"

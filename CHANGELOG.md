@@ -3,6 +3,28 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.2.1] - 2026-10-19
+
+Hotfix for the first real server run of 00_setup_env.sh.
+
+### Fixed
+
+- The setup script now pins MAMBA_ROOT_PREFIX to the conda base and invokes
+  the runner by absolute path, so the environment is created at
+  anaconda3/envs/pufprobe instead of being nested inside the currently
+  activated environment (e.g. anaconda3/envs/checkm/envs/pufprobe)
+- Any incorrectly nested environment left by v0.2.0 is detected and removed
+  automatically when the script is re-run
+- P2Rank was never available on bioconda and aborted the conda solver; it is
+  no longer installed through conda. The script now fetches the portable
+  P2Rank 2.5.1 GitHub release into thirdparty/p2rank (with openjdk 17 from
+  conda-forge and proxy-mirror fallbacks), and failure is non-blocking
+- torch wheels are now tried in order from Aliyun, SJTU and the official
+  PyTorch index instead of relying on the official index only
+- externals.p2rank() resolves the portable installation through P2RANK_HOME
+  and the repo-local thirdparty/p2rank/distro/prank before falling back to
+  PATH
+
 ## [0.2.0] - 2026-10-19
 
 Server-hardening release for the computational deployment phase.
