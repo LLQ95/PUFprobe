@@ -74,13 +74,13 @@ fi
 # ---------------------------------------------------------------------------
 RUN_CONFIG="$RUN_CFG_DIR/${BATCH_NAME}_${ANNOTATION_SOURCE}.json"
 MIN_CONF="${MIN_CONFIDENCE_ANNOTATE:-$HIGH_CONFIDENCE}"
-"${CONDA_RUN[@]}" python - "$RUN_CONFIG" "$ESM_BATCH_SIZE" "$MIN_PLDDT" "$HIGH_CONFIDENCE" "$MIN_CONF" <<'PY'
+"${CONDA_RUN[@]}" python - "$RUN_CONFIG" "$ESM_BATCH_SIZE" "$MIN_PLDDT" "$HIGH_CONFIDENCE" "$MIN_CONF" "$FOLD_ON_CPU" <<'PY'
 import json
 import sys
-path, batch, min_plddt, high_conf, min_conf = sys.argv[1:6]
+path, batch, min_plddt, high_conf, min_conf, fold_on_cpu = sys.argv[1:7]
 cfg = {
     "embed": {"batch_size": int(batch)},
-    "fold": {"min_plddt": float(min_plddt)},
+    "fold": {"min_plddt": float(min_plddt), "allow_cpu_fold": fold_on_cpu == "1"},
     "rank": {
         "high_confidence": float(high_conf),
         "min_confidence_annotate": float(min_conf),
@@ -146,7 +146,7 @@ if [ "${#CHANNELS[@]}" -gt 0 ]; then
 else
     log "No search databases present; skipping search stage (run 01_download_dbs.sh)."
 fi
-run_stage context "${CONTEXT_OPTS[@]}"
+run_stage context ${CONTEXT_OPTS[@]+"${CONTEXT_OPTS[@]}"}
 run_stage rank
 run_stage report --formats json,html,md
 run_stage annotate --min-confidence "$MIN_CONF"

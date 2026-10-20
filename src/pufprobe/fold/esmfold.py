@@ -1,9 +1,12 @@
 """ESMFold structure prediction with fully lazy torch imports.
 
-``torch`` and the ESMFold weights are loaded only inside :func:`fold_sequence`.
-Without torch / weights a module-local :class:`ModelUnavailable` is raised with
-install guidance; the fold pipeline catches it and marks families failed/low
-confidence rather than crashing.
+Torch and the ESMFold weights are loaded once through :func:`load_esmfold`; the
+fold pipeline loads the model a single time before iterating over families and
+calls :func:`fold_with_model` for each representative. :func:`fold_sequence` is
+a convenience that combines both steps, used by the standalone call and the
+tests. Without torch or weights, :class:`ModelUnavailable` is raised with
+install guidance, and the fold pipeline marks the families skipped rather than
+crashing.
 
 ESMFold convention: the B-factor column of the emitted PDB holds the
 per-residue pLDDT on a 0-100 scale.
@@ -11,7 +14,7 @@ per-residue pLDDT on a 0-100 scale.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 
@@ -30,18 +33,17 @@ class ModelUnavailable(RuntimeError):
     """Raised when torch / ESMFold weights cannot be loaded."""
 
 
-def fold_sequence(sequence: str) -> Tuple[str, float, Optional[float]]:
-    """Fold a single protein sequence.
+class LoadedESMFold:
+    """A loaded ESMFold model bound to its inference device."""
 
-    Returns ``(pdb_str, median_plddt, mean_pae)``. ``median_plddt`` is on the
-    0-100 scale; ``mean_pae`` may be ``None`` if the backend does not expose it.
+    def __init__(self, model: Any, device: str, torch_module: Any) -> None:
+        self.model = model
+        self.device = device
+        self.torch = torch_module
 
-    Raises
-    ------
-    ModelUnavailable
-        If torch, the ESMFold weights or the forward pass are unavailable.
-    """
 
+def load_esmfold() -> LoadedESMFold:
+    """Load torch and the ESMFold model once, bound to the available device."""
     try:
         import torch  # type: ignore
     except Exception as exc:  # pragma: no cover
@@ -56,16 +58,24 @@ def fold_sequence(sequence: str) -> Tuple[str, float, Optional[float]]:
             f"Could not load ESMFold weights ({exc}). {INSTALL_HINT}"
         ) from exc
 
-    device = "cpu"
-    if torch.cuda.is_available():
-        device = "cuda"
-    logger.info("Loaded ESMFold on device '%s' (seq len=%d)", device, len(sequence))
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device).eval()
+    logger.info("Loaded ESMFold on device '%s'", device)
+    return LoadedESMFold(model, device, torch)
 
+
+def fold_with_model(
+    loaded: LoadedESMFold, sequence: str
+) -> Tuple[str, float, Optional[float]]:
+    """Run a single sequence through a loaded model.
+
+    Returns ``(pdb_str, median_plddt, mean_pae)``. ``median_plddt`` is on the
+    0-100 scale; ``mean_pae`` may be ``None`` when the backend does not expose it.
+    """
     try:
-        model = model.to(device).eval()
-        with torch.no_grad():
-            output = model.infer(sequence)
-        pdb_str = model.output_to_pdb(output)[0]
+        with loaded.torch.no_grad():
+            output = loaded.model.infer(sequence)
+        pdb_str = loaded.model.output_to_pdb(output)[0]
         plddt = float(np.median(output["plddt"].cpu().numpy()))
         mean_pae = None
         if "predicted_aligned_error" in output:
@@ -77,12 +87,17 @@ def fold_sequence(sequence: str) -> Tuple[str, float, Optional[float]]:
         raise ModelUnavailable(
             f"ESMFold forward pass failed ({exc}). {INSTALL_HINT}"
         ) from exc
-    finally:
-        del model
-        if device == "cuda":
-            torch.cuda.empty_cache()
-
     return pdb_str, plddt, mean_pae
+
+
+def fold_sequence(sequence: str) -> Tuple[str, float, Optional[float]]:
+    """Fold one sequence, loading the model on demand and releasing it after."""
+    loaded = load_esmfold()
+    try:
+        return fold_with_model(loaded, sequence)
+    finally:
+        if loaded.device == "cuda":
+            loaded.torch.cuda.empty_cache()
 
 
 # ---------------------------------------------------------------------------

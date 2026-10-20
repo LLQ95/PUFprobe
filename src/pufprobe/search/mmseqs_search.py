@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 INSTALL_HINT = "See docs/server_setup.md for downloading the UniRef MMseqs2 database."
 _DB_CANDIDATES = ("uniref90", "uniref50", "uniref100", "uniref", "swissprot", "mmseqs_db")
 
-COLS = "query,target,pident,evalue,qstart,qend,tstart,tend,qcov,tcov,desc"
+COLS = "query,target,pident,evalue,qstart,qend,tstart,tend,qcov,tcov,theader"
 
 
 def run_mmseqs_search(
@@ -88,7 +88,7 @@ def parse_convertalis(tsv_path: Path, report_evalue: float) -> Dict[str, List[Ev
             row = line.rstrip("\n").split("\t")
             if len(row) < 11:
                 continue
-            query, target, pident, evalue_s, qs, qe, ts, te, qcov, tcov, desc = row[:11]
+            query, target, pident, evalue_s, qs, qe, ts, te, qcov, tcov, theader = row[:11]
             try:
                 evalue = float(evalue_s)
                 qcov_f = float(qcov)
@@ -101,7 +101,7 @@ def parse_convertalis(tsv_path: Path, report_evalue: float) -> Dict[str, List[Ev
             ev = Evidence(
                 channel=EvidenceChannel.REMOTE_HOMOLOGY,
                 target_id=target,
-                target_label=desc.strip() or target,
+                target_label=_description(target, theader),
                 score=score,
                 evalue=evalue,
                 coverage=qcov_f,
@@ -121,9 +121,27 @@ def _evalue_score(evalue: float) -> float:
     return max(0.0, min(1.0, -math.log10(evalue) / 10.0))
 
 
+def _description(target_id: str, header: str) -> str:
+    """Return the free-text description part of a full header line.
+
+    The ``theader`` column contains the identifier token followed by the
+    description, e.g. ``sp|P0AG14|SOHB_ECOLI Probable protease SohB ...``.
+    The first whitespace-delimited token is removed; the full header is
+    returned when it contains no description.
+    """
+    header = header.strip()
+    if not header:
+        return target_id
+    parts = header.split(None, 1)
+    return parts[1].strip() if len(parts) == 2 else header
+
+
 def _run(cmd: list) -> None:
     completed = subprocess.run(cmd, capture_output=True, text=True)
     if completed.returncode != 0:
-        raise subprocess.CalledProcessError(
-            completed.returncode, cmd, completed.stdout, completed.stderr
+        # Surface the program's own stderr so the cause is visible in the log;
+        # CalledProcessError would only print the command and the exit code.
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise subprocess.SubprocessError(
+            f"{cmd[0]} {cmd[1]} failed (exit {completed.returncode}): {detail}"
         )

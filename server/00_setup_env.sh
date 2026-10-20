@@ -159,8 +159,9 @@ else
     log "torch already importable ($(python -c 'import torch; print(torch.__version__)' 2>/dev/null || echo unknown)); skipped."
 fi
 
-log "Installing fair-esm ..."
-pip install -i "$PIP_INDEX_URL" fair-esm || pip install fair-esm
+log "Installing fair-esm and ESMFold runtime dependencies ..."
+# einops is required by ESMFold but is not pulled in by fair-esm.
+pip install -i "$PIP_INDEX_URL" fair-esm einops || pip install fair-esm einops
 
 # ---------------------------------------------------------------------------
 # 5b. P2Rank portable release (optional; pocket channel is non-essential)

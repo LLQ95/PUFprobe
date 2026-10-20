@@ -15,13 +15,13 @@ from pufprobe.search import mmseqs_search as mmseqs_mod
 from pufprobe.search.pipeline import run as search_run
 from pufprobe.workdir import WorkDir
 
-COLS = "query,target,pident,evalue,qstart,qend,tstart,tend,qcov,tcov,desc"
+COLS = "query,target,pident,evalue,qstart,qend,tstart,tend,qcov,tcov,theader"
 
 
 def test_parse_convertalis_evidence() -> None:
     rows = [
-        "sA@g1\tsp|X1|\t45.2\t1e-20\t1\t50\t1\t50\t0.9\t0.85\tsome protein desc",
-        "sA@g1\tsp|X2|\t20.0\t1.0\t1\t10\t1\t10\t0.2\t0.2\tbad evalue",
+        "sA@g1\tX1\t45.2\t1e-20\t1\t50\t1\t50\t0.9\t0.85\tsp|X1|NAME_ONE some protein desc",
+        "sA@g1\tX2\t20.0\t1.0\t1\t10\t1\t10\t0.2\t0.2\tsp|X2|NAME_TWO bad evalue",
     ]
     tsv = Path("dummy.tsv")
     tsv.write_text("\n".join(rows) + "\n", encoding="utf-8")
@@ -34,12 +34,23 @@ def test_parse_convertalis_evidence() -> None:
     assert len(hits) == 1  # second row filtered by e-value
     h = hits[0]
     assert h.channel.value == "remote_homology"
-    assert h.target_id == "sp|X1|"
+    assert h.target_id == "X1"
     assert h.target_label == "some protein desc"
     assert h.evalue == pytest.approx(1e-20)
     assert h.coverage == pytest.approx(0.9)
     assert 0.0 <= h.score <= 1.0
     assert h.score == pytest.approx(1.0)  # -log10(1e-20)=20 -> capped at 1
+
+
+def test_description_extraction_from_header() -> None:
+    # Full UniProt header as emitted by the theader column.
+    assert mmseqs_mod._description(
+        "P0AG14", "sp|P0AG14|SOHB_ECOLI Probable protease SohB OS=Escherichia coli"
+    ) == "Probable protease SohB OS=Escherichia coli"
+    # Header with no description: the whole header is returned.
+    assert mmseqs_mod._description("X1", "sp|X1|NAME") == "sp|X1|NAME"
+    # Empty header: fall back to the target identifier.
+    assert mmseqs_mod._description("X1", "") == "X1"
 
 
 def test_parse_foldseek_tsv() -> None:

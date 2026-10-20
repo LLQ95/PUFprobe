@@ -3,6 +3,37 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.2.6] - 2026-10-20
+
+Fixes for the fold, search, and context stages after a full fallback run
+(`FORCE_FALLBACK=1 bash server/03_run_pufprobe.sh`).
+
+### Fixed
+
+- MMseqs2 v18 does not accept a `desc` or `tdesc` format-output column;
+  `convertalis` failed with "Format code desc does not exist" and the channel
+  produced no evidence. The full target header column is now `theader`, the
+  field supported in MMseqs2 v18, and the free-text description is derived
+  from it.
+- The fold stage ignored the CPU/fallback flag and attempted to load ESMFold
+  once per family, failing on every family because of network access and a
+  missing dependency. ESMFold is now disabled and all families are marked
+  skipped under `--cpu`/fallback unless `fold.allow_cpu_fold` is set.
+- The ESMFold model is loaded once before the family loop instead of being
+  reloaded for each family; a missing model or dependency is reported a single
+  time.
+- The context stage aborted with "unbound variable" on older Bash because an
+  empty `CONTEXT_OPTS` array was expanded under `set -u`; the array now uses
+  the empty-safe expansion.
+- MMseqs2 command failures now include the program's stderr in the raised
+  error so the cause appears in the log instead of only the exit code.
+
+### Added
+
+- `00_setup_env.sh` installs `einops` together with `fair-esm`; `einops` is
+  required by ESMFold but is not pulled in by `fair-esm`.
+- Config key `fold.allow_cpu_fold` (default `false`).
+
 ## [0.2.5] - 2026-10-20
 
 All code, comments, and documentation shipped on GitHub are now in English; the

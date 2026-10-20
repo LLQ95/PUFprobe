@@ -55,6 +55,8 @@ DEFAULTS: Dict[str, Any] = {
         "min_plddt": 70.0,
         "max_length_esmfold": 1000,
         "tolerate_disordered": True,
+        # When false (default), ESMFold is not loaded under --cpu / fallback.
+        "allow_cpu_fold": False,
     },
     # search
     "search": {

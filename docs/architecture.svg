@@ -57,7 +57,7 @@
   <line x1="557" y1="303" x2="557" y2="427" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arr1)"/>
   <rect x="460" y="430" width="195" height="115" rx="8" fill="#dbeafe" stroke="#2563eb"/>
   <text x="557" y="460" text-anchor="middle" font-size="16" font-weight="600" fill="#1e3a8a">pLM embedding &amp; clustering</text>
-  <text x="557" y="484" text-anchor="middle" font-size="13" fill="#1e40af">ESM-2 650M（GPU）</text>
+  <text x="557" y="484" text-anchor="middle" font-size="13" fill="#1e40af">ESM-2 650M(GPU)</text>
   <text x="557" y="504" text-anchor="middle" font-size="13" fill="#1e40af">CPU fallback 8M / 150M</text>
   <text x="557" y="526" text-anchor="middle" font-size="13" fill="#1e40af">MMseqs2 family clustering</text>
 
