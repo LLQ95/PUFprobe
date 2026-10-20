@@ -199,3 +199,46 @@ def test_search_pipeline_skips_all_missing_tools(tmp_path: Path, monkeypatch) ->
     out = read_json(wd.path("search", "search_evidence.json"))  # type: ignore[arg-type]
     assert out == {}
     assert wd.marker("search").is_file()
+
+
+def test_foldseek_finds_models_from_absolute_structures_dir(tmp_path: Path, monkeypatch) -> None:
+    # The fold stage stores Family.structure_path relative to the run workdir,
+    # while the search process runs from the repository root. Structures must
+    # still be resolved against the absolute structures directory.
+    from pufprobe import externals
+
+    wd = WorkDir(tmp_path / "run")
+    structures_dir = wd.stage_dir("fold") / "structures"
+    structures_dir.mkdir(parents=True, exist_ok=True)
+    (structures_dir / "FAM00001.pdb").write_text("ATOM\n", encoding="utf-8")
+
+    dbdir = tmp_path / "dbdir"
+    dbdir.mkdir(parents=True, exist_ok=True)
+    (dbdir / "foldseek_db.index").write_text("idx\n", encoding="utf-8")
+
+    out_dir = wd.stage_dir("search")
+    fam = Family(
+        family_id="FAM00001", representative_key="sA@g1",
+        members=["sA@g1"], representative_seq="M" * 50,
+        size=1, lineage_width=1,
+        fold_status="folded", plddt=90.0,
+        structure_path="04_fold/structures/FAM00001.pdb",
+    )
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    monkeypatch.setattr(
+        externals, "foldseek",
+        lambda: ToolInfo(name="foldseek", available=True, path="foldseek"),
+    )
+    calls: list = []
+    monkeypatch.setattr(foldseek_mod, "_run", lambda cmd: calls.append(cmd))
+
+    foldseek_mod.run_foldseek_search(
+        [fam], structures_dir, dbdir, out_dir, min_plddt=70.0,
+    )
+
+    assert calls, "foldseek must be invoked, not skipped on a relative-path check"
+    assert calls[0][1] == "createdb"
+    assert (out_dir / "_foldseek_query" / "FAM00001.pdb").exists()

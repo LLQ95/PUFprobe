@@ -59,7 +59,10 @@ def run_foldseek_search(
         return {}, None
 
     usable = usable_structures(families, min_plddt)
-    present = [f for f in usable if f.structure_path and Path(f.structure_path).exists()]
+    # Resolve models against the absolute structures directory passed in by the
+    # search pipeline; Family.structure_path is stored relative to the run
+    # workdir and is not resolvable from the process working directory.
+    present = [f for f in usable if (structures_dir / f"{f.family_id}.pdb").exists()]
     if not present:
         logger.warning("No usable folded structures; skipping foldseek channel.")
         return {}, None
