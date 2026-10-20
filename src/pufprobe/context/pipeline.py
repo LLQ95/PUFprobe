@@ -21,6 +21,7 @@ from pufprobe.models import (
     GeneVerdict,
     to_dict,
 )
+from pufprobe.ontology import parse_dbxrefs
 from pufprobe.workdir import WorkDir
 from pufprobe.context import microsynteny, operons, phyloprofile
 
@@ -83,6 +84,47 @@ def _reference_terms(path: Path) -> Set[str]:
     return terms
 
 
+def _context_evidence(
+    product: str,
+    ontologies: Dict[str, List[str]],
+    score: float,
+    details: Dict[str, Any],
+    fallback_id: str,
+) -> List[Evidence]:
+    """Build ontology Evidence for one context signal.
+
+    When the associated product has Pfam/EC/GO cross-references the evidence
+    is emitted on those ontology terms so it can converge with direct
+    evidence. Without an ontology id a free-text label is kept (it cannot
+    converge across channels and stays in the indirect context group).
+    """
+    out: List[Evidence] = []
+    for term_type in ("Pfam", "EC", "GO"):
+        for term_id in ontologies.get(term_type, []):
+            d = dict(details)
+            d["db"] = term_type.lower()
+            out.append(
+                Evidence(
+                    channel=EvidenceChannel.CONTEXT,
+                    target_id=term_id,
+                    target_label=product,
+                    score=score,
+                    details=d,
+                )
+            )
+    if not out:
+        out.append(
+            Evidence(
+                channel=EvidenceChannel.CONTEXT,
+                target_id=fallback_id,
+                target_label=product,
+                score=score,
+                details=dict(details),
+            )
+        )
+    return out
+
+
 def run(
     workdir: WorkDir,
     config: Dict[str, Any],
@@ -109,6 +151,13 @@ def run(
     profile_rows, family_samples, samples = phyloprofile.build_profiles(records, config)
     micro_rows = microsynteny.build_microsynteny(records, neighbour_rows, family_samples, samples)
 
+    # Map every observed product to its ontology cross-references.
+    product_ont: Dict[str, Dict[str, List[str]]] = {}
+    for r in records:
+        key = r.product.lower().strip()
+        if key and key not in product_ont:
+            product_ont[key] = parse_dbxrefs(r.dbxrefs)
+
     # ---- evidence --------------------------------------------------------
     evidence: Dict[str, List[Evidence]] = {}
     by_key = {r.key: r for r in records}
@@ -116,24 +165,28 @@ def run(
     for row in neighbour_rows:
         if not row["coupled"]:
             continue
-        target_label = row["neighbour_product"]
-        product = target_label.lower()
-        if card_terms and any(term in product for term in card_terms):
-            target_label = f"[CARD] {target_label}"
-        if vfdb_terms and any(term in product for term in vfdb_terms):
-            target_label = f"[VFDB] {target_label}"
+        product = row["neighbour_product"]
+        nb_key = f"{row['sample_id']}@{row['neighbour_locus']}"
+        nb_rec = by_key.get(nb_key)
+        if nb_rec is not None:
+            ont = parse_dbxrefs(nb_rec.dbxrefs)
+        else:
+            ont = product_ont.get(product.lower().strip(), {})
+        target_label = product
+        pname = product.lower()
+        if card_terms and any(term in pname for term in card_terms):
+            target_label = f"[CARD] {product}"
+        if vfdb_terms and any(term in pname for term in vfdb_terms):
+            target_label = f"[VFDB] {product}"
         key = f"{row['sample_id']}@{row['locus_tag']}"
-        evidence.setdefault(key, []).append(
-            Evidence(
-                channel=EvidenceChannel.CONTEXT,
-                target_id=row["neighbour_locus"],
-                target_label=target_label,
-                score=1.0,
-                details={"kind": "operon_coupling", "intergenic_bp": row["intergenic_bp"]},
+        details = {"kind": "operon_coupling", "intergenic_bp": row["intergenic_bp"]}
+        evidence.setdefault(key, []).extend(
+            _context_evidence(
+                target_label, ont, 1.0, details, row["neighbour_locus"]
             )
         )
 
-    # Profile correlation -> one emphasis evidence entry per family.
+    # Profile correlation -> one best evidence entry per family.
     best: Dict[str, Dict[str, Any]] = {}
     for prow in profile_rows:
         if not prow["emphasis"]:
@@ -142,16 +195,18 @@ def run(
         if cur is None or prow["jaccard"] > cur["jaccard"]:
             best[prow["family_id"]] = prow
     for family_id, prow in best.items():
+        product = prow["annotated_gene"]
+        ont = product_ont.get(product, {})
         for record in records:
             if record.family_id != family_id:
                 continue
-            evidence.setdefault(record.key, []).append(
-                Evidence(
-                    channel=EvidenceChannel.CONTEXT,
-                    target_id=prow["annotated_gene"],
-                    target_label=prow["annotated_gene"],
-                    score=prow["jaccard"],
-                    details={"kind": "phylogenetic_profile"},
+            evidence.setdefault(record.key, []).extend(
+                _context_evidence(
+                    product,
+                    ont,
+                    prow["jaccard"],
+                    {"kind": "phylogenetic_profile"},
+                    product,
                 )
             )
 
@@ -159,19 +214,22 @@ def run(
     for mrow in micro_rows:
         if mrow["conservation_fraction"] <= 0:
             continue
+        product = mrow["conserved_neighbour"]
+        ont = product_ont.get(product, {})
         for record in records:
             if record.family_id != mrow["family_id"]:
                 continue
-            evidence.setdefault(record.key, []).append(
-                Evidence(
-                    channel=EvidenceChannel.CONTEXT,
-                    target_id=mrow["conserved_neighbour"],
-                    target_label=mrow["conserved_neighbour"],
-                    score=mrow["conservation_fraction"],
-                    details={
-                        "kind": "microsynteny",
-                        "classification": mrow["classification"],
-                    },
+            details = {
+                "kind": "microsynteny",
+                "classification": mrow["classification"],
+            }
+            evidence.setdefault(record.key, []).extend(
+                _context_evidence(
+                    product,
+                    ont,
+                    mrow["conservation_fraction"],
+                    details,
+                    product,
                 )
             )
 

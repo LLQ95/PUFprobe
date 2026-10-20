@@ -65,6 +65,12 @@ CHANNEL_ORDER = [
     "database",
 ]
 
+# Evidence groups that provide indirect support (guilt by association). They
+# can raise a score through noisy-OR but are not counted toward
+# require_independent_groups, so they cannot by themselves unlock high
+# confidence. High-confidence transfer needs two direct evidence groups.
+INDIRECT_GROUPS = frozenset({"context"})
+
 _GO_RE = re.compile(r"^GO:\d{7}$")
 _EC_RE = re.compile(r"^(EC:)?\d+\.\d+\.\d+\.[\dR]+(?:\.[A-Z])?$")
 _PFAM_RE = re.compile(r"^PF\d{5}")
@@ -203,7 +209,9 @@ def _rule_fusion(
     required_groups = int(rank_cfg["require_independent_groups"])
     method = str(rank_cfg.get("fusion_method", "group_noisy_or"))
 
-    group_set = sorted({CHANNEL_GROUPS[ev.channel.value] for ev in gevs})
+    all_groups = {CHANNEL_GROUPS[ev.channel.value] for ev in gevs}
+    direct_groups = sorted(all_groups - INDIRECT_GROUPS)
+    indirect_present = sorted(all_groups & INDIRECT_GROUPS)
 
     if method == "weighted_sum":
         rule_weights: Dict[str, float] = rank_cfg["rule_weights"]
@@ -211,12 +219,15 @@ def _rule_fusion(
         raw = sum(rule_weights.get(ch, 0.0) * score for ch, score in best_per_channel.items())
         raw = min(max(raw, 0.0), 1.0)
         rationale = "score: weighted sum of channel maxima (rule weights)"
-        if len(group_set) < required_groups:
+        if len(direct_groups) < required_groups:
             capped = min(raw, high_conf - 0.01)
-            rationale += (
-                f"; capped at {capped:.3f}: only {len(group_set)} independent "
-                f"evidence group(s) ({', '.join(group_set)}), need {required_groups}"
+            note = (
+                f"; capped at {capped:.3f}: only {len(direct_groups)} direct "
+                f"evidence group(s) ({', '.join(direct_groups)}), need {required_groups}"
             )
+            if indirect_present:
+                note += f"; indirect group(s) {', '.join(indirect_present)} do not count"
+            rationale += note
             raw = capped
         return raw, rationale
 
@@ -228,16 +239,19 @@ def _rule_fusion(
     fused = _noisy_or([group_strength[g] for g in ordered])
     detail = ", ".join(f"{g}={group_strength[g]:.3f}" for g in ordered)
     rationale = (
-        f"score: noisy-OR over {len(ordered)} independent evidence group(s) "
+        f"score: noisy-OR over {len(ordered)} evidence group(s) "
         f"[{detail}] = {fused:.3f}"
     )
-    if len(group_set) < required_groups:
+    if len(direct_groups) < required_groups:
         capped = min(fused, single_group_cap)
-        rationale += (
-            f"; capped at {capped:.3f}: only {len(group_set)} independent "
-            f"evidence group(s) ({', '.join(group_set)}), need {required_groups} "
+        note = (
+            f"; capped at {capped:.3f}: only {len(direct_groups)} direct "
+            f"evidence group(s) ({', '.join(direct_groups)}), need {required_groups} "
             f"for high confidence"
         )
+        if indirect_present:
+            note += f"; indirect group(s) {', '.join(indirect_present)} do not count"
+        rationale += note
         fused = capped
     return fused, rationale
 

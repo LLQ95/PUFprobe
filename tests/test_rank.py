@@ -147,29 +147,47 @@ def test_single_group_capped_medium_confidence():
     assert "capped" in term.rationale
 
 
-def test_two_groups_noisy_or():
-    # Two independent groups (database + context), same target.
+def test_two_direct_groups_noisy_or():
+    # Two direct groups (database + remote_homology), same target.
     terms = _fuse(
         {
             "sA@g2": [
                 _ev("database", "UniRef90:B", "two-group strong", 1.0),
-                _ev("context", "UniRef90:B", "same target from context", 1.0),
+                _ev("remote_homology", "UniRef90:B", "same target from homology", 1.0),
             ],
             "sA@g3": [
                 _ev("database", "UniRef90:C", "two-group weak", 0.5),
-                _ev("context", "UniRef90:C", "same target from context", 0.5),
+                _ev("remote_homology", "UniRef90:C", "same target from homology", 0.5),
             ],
         }
     )
-    # strong: noisy-OR of p=0.90 and p=0.60 = 1 - 0.10*0.40 = 0.96
+    # strong: noisy-OR of p=0.90 (database) and p=0.95 (remote_homology)
+    # = 1 - 0.10*0.05 = 0.995
     t2 = terms["sA@g2"][0]
-    assert t2.raw_score == pytest.approx(0.96, abs=1e-6)
+    assert t2.raw_score == pytest.approx(0.995, abs=1e-6)
     assert t2.raw_score >= 0.80
     assert "capped" not in t2.rationale
-    # weak: p=0.45 and p=0.30 -> 1 - 0.55*0.70 = 0.615
+    # weak: p=0.45 and p=0.475 -> 1 - 0.55*0.525 = 0.71125
     t3 = terms["sA@g3"][0]
-    assert t3.raw_score == pytest.approx(0.615, abs=1e-6)
+    assert t3.raw_score == pytest.approx(0.71125, abs=1e-6)
     assert t3.raw_score < 0.80
+
+
+def test_context_does_not_unlock_high_confidence():
+    # database + context: context is indirect and does not count as a group.
+    terms = _fuse(
+        {
+            "sA@g2": [
+                _ev("database", "UniRef90:B", "strong", 1.0),
+                _ev("context", "UniRef90:B", "same target from context", 1.0),
+            ],
+        }
+    )
+    t2 = terms["sA@g2"][0]
+    # noisy-OR would be 0.96 but only one direct group -> capped 0.60
+    assert t2.raw_score == pytest.approx(0.60)
+    assert "capped" in t2.rationale
+    assert "indirect" in t2.rationale
 
 
 def test_structure_plus_sequence_ontology_reaches_high_confidence():
@@ -229,8 +247,8 @@ def test_fusion_via_pipeline(rank_workdir):
     search = {
         "sA@g1": [_ev("database", "UniRef90:A", "single group", 1.0)],
         "sA@g2": [
-            _ev("database", "UniRef90:B", "two-group term", 1.0),
-            _ev("context", "UniRef90:B", "same target from context", 1.0),
+            _ev("database", "UniRef90:B", "two direct groups", 1.0),
+            _ev("remote_homology", "UniRef90:B", "same target from homology", 1.0),
         ],
     }
     (rank_workdir.path("search", "search_evidence.json")).write_text(
@@ -241,7 +259,7 @@ def test_fusion_via_pipeline(rank_workdir):
     preds = {f"{p['sample_id']}@{p['locus_tag']}": p for p in json.loads(rank_workdir.path("rank", "predictions.json").read_text("utf-8"))}
 
     assert preds["sA@g1"]["terms"][0]["raw_score"] == pytest.approx(0.60)
-    assert preds["sA@g2"]["terms"][0]["raw_score"] == pytest.approx(0.96, abs=1e-6)
+    assert preds["sA@g2"]["terms"][0]["raw_score"] == pytest.approx(0.995, abs=1e-6)
 
 
 def test_calibration_metadata_identity(rank_workdir):
