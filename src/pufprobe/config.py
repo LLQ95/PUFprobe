@@ -62,6 +62,11 @@ DEFAULTS: Dict[str, Any] = {
     "search": {
         "channels": ["mmseqs", "foldseek", "hhblits"],
         "foldseek_sensitivity": 9.5,
+        # Structural hit quality gates: TM-score >= 0.5 is the same-fold
+        # boundary, and the foldseek report E-value is kept slightly looser
+        # than the sequence channel because structure detects remote homologs.
+        "foldseek_min_tmscore": 0.5,
+        "foldseek_report_evalue": 1e-2,
         "hhblits_iterations": 2,
         "report_evalue": 1e-3,
     },

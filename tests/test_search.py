@@ -85,7 +85,10 @@ def test_parse_foldseek_tsv() -> None:
     assert "sA@g1" in ev
     h = ev["sA@g1"][0]
     assert h.channel.value == "foldseek"
-    assert h.score == pytest.approx(0.98)  # prob 98 -> /100
+    # Score is TM-score x query coverage x significance (prob is retained only
+    # in details): 0.85 x 0.90 x 1.0 (E=1e-15) = 0.765.
+    assert h.score == pytest.approx(0.765, abs=1e-3)
+    assert h.details.get("prob") == pytest.approx(98.0)
 
 
 def test_parse_foldseek_tsv_with_sifts() -> None:
@@ -118,6 +121,42 @@ def test_parse_foldseek_tsv_bare_pdb_id_with_sifts() -> None:
     h = ev["sA@g1"][0]
     assert h.target_id == "PF00042"
     assert h.details.get("pdb_target") == "101m"
+
+
+def test_foldseek_structure_quality_gates() -> None:
+    fam_to_rep = {"FAM00001": "sA@g1"}
+    # Columns: query, target, alntmscore, prob, evalue, qcov, tcov.
+    rows = [
+        # Below the same-fold TM-score boundary: dropped even with prob=1.
+        "FAM00001\t1aaa_A\t0.40\t1.0\t1e-10\t0.9\t0.9",
+        # Non-significant E-value: dropped despite a high TM-score.
+        "FAM00001\t1bbb_A\t0.90\t1.0\t5.0\t0.9\t0.9",
+        # Local fragment: high TM-score over only ~35% of the query.
+        "FAM00001\t7ax1_A\t0.956\t1.0\t8.32e-05\t0.352\t0.197",
+        # Strong domain-level hit: high TM-score, high query coverage, significant.
+        "FAM00001\t9kb6\t0.814\t1.0\t1.99e-09\t0.962\t0.416",
+    ]
+    tsv = Path("fsg.tsv")
+    tsv.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    try:
+        ev = foldseek_mod.parse_foldseek_tsv(tsv, fam_to_rep)
+    finally:
+        tsv.unlink()
+    by_target = {e.details.get("pdb_target"): e for e in ev["sA@g1"]}
+    assert set(by_target) == {"7ax1_A", "9kb6"}
+    # Local fragment kept but down-weighted: 0.956 x 0.352 x 0.408 = 0.138.
+    assert by_target["7ax1_A"].score == pytest.approx(0.138, abs=2e-3)
+    # Strong domain-level hit: 0.814 x 0.962 x 0.870 = 0.682.
+    assert by_target["9kb6"].score == pytest.approx(0.682, abs=2e-3)
+    # prob is no longer the score but stays available for auditing.
+    assert by_target["9kb6"].details.get("prob") == pytest.approx(1.0)
+
+
+def test_structure_score_formula() -> None:
+    # fold x coverage x significance, clamped to [0, 1].
+    assert foldseek_mod._structure_score(0.9, 0.9, 1e-15) == pytest.approx(0.81)
+    assert foldseek_mod._structure_score(0.0, 0.9, 1e-15) == 0.0
+    assert foldseek_mod._structure_score(1.5, 1.0, 0.0) == 1.0
 
 
 def test_load_sifts_pdb_chain_pfam(tmp_path: Path) -> None:

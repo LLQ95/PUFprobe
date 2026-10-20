@@ -29,6 +29,15 @@ _DB_NAME = "foldseek_db"
 
 COLS = "query,target,alntmscore,prob,evalue,qcov,tcov"
 
+# Structural hit quality gates. A TM-score around 0.5 is the foldseek/PDB
+# same-fold boundary; below it most alignments are unrelated and are not
+# admitted as structure evidence. The E-value gate mirrors the sequence
+# channel's report threshold but is slightly looser, because structural
+# similarity remains detectable at sequence divergence where profile searches
+# lose sensitivity.
+DEFAULT_MIN_TMSCORE = 0.5
+DEFAULT_FOLDSEEK_EVALUE = 1e-2
+
 
 def usable_structures(
     families: List[Family], min_plddt: float
@@ -53,6 +62,8 @@ def run_foldseek_search(
     sensitivity: float = 9.5,
     threads: int = 1,
     sifts_path: Optional[Path] = None,
+    min_tmscore: float = DEFAULT_MIN_TMSCORE,
+    max_evalue: float = DEFAULT_FOLDSEEK_EVALUE,
 ) -> Tuple[Dict[str, List[Evidence]], Optional[Path]]:
     info = externals.foldseek()
     if not info.available:
@@ -123,7 +134,10 @@ def run_foldseek_search(
         logger.warning("Foldseek could not be launched (%s); channel skipped.", exc)
         return {}, None
 
-    evidence = parse_foldseek_tsv(raw_tsv, fam_to_rep, sifts)
+    evidence = parse_foldseek_tsv(
+        raw_tsv, fam_to_rep, sifts,
+        min_tmscore=min_tmscore, max_evalue=max_evalue,
+    )
     # Keep the scratch directory on failure (useful for manual diagnosis),
     # but remove it once the parsed TSV has been written to out_dir.
     shutil.rmtree(tmp, ignore_errors=True)
@@ -134,6 +148,8 @@ def parse_foldseek_tsv(
     tsv_path: Path,
     fam_to_rep: Dict[str, str],
     sifts: Optional[Dict[str, List[str]]] = None,
+    min_tmscore: float = DEFAULT_MIN_TMSCORE,
+    max_evalue: float = DEFAULT_FOLDSEEK_EVALUE,
 ) -> Dict[str, List[Evidence]]:
     evidence: Dict[str, List[Evidence]] = {}
     if not tsv_path.exists():
@@ -149,13 +165,22 @@ def parse_foldseek_tsv(
                 evalue = float(evalue_s)
                 prob_f = float(prob)
                 tm_f = float(tmscore)
+                qcov_f = float(qcov)
+                tcov_f = float(tcov)
             except ValueError:
                 continue
-            score = max(0.0, min(1.0, prob_f / 100.0)) if prob_f > 1.0 else prob_f
+            # foldseek's alignment probability saturates near 1.0 even for weak,
+            # partial alignments, so it is not used as the score. Reject
+            # sub-fold and non-significant hits, then derive graded strength
+            # from TM-score, query coverage and E-value significance.
+            if tm_f < min_tmscore or evalue > max_evalue:
+                continue
+            score = _structure_score(tm_f, qcov_f, evalue)
             base_details = {
                 "tmscore": tm_f,
-                "qcov": float(qcov),
-                "tcov": float(tcov),
+                "prob": prob_f,
+                "qcov": qcov_f,
+                "tcov": tcov_f,
                 "family_id": query_fam,
                 "pdb_target": target,
             }
@@ -171,7 +196,7 @@ def parse_foldseek_tsv(
                         target_label=target,
                         score=score,
                         evalue=evalue,
-                        coverage=float(qcov),
+                        coverage=qcov_f,
                         details=d,
                     )
                     evidence.setdefault(rep_key, []).append(ev)
@@ -182,11 +207,34 @@ def parse_foldseek_tsv(
                     target_label=target,
                     score=score,
                     evalue=evalue,
-                    coverage=float(qcov),
+                    coverage=qcov_f,
                     details=base_details,
                 )
                 evidence.setdefault(rep_key, []).append(ev)
     return evidence
+
+
+def _evalue_score(evalue: float) -> float:
+    if evalue <= 0.0:
+        return 1.0
+    return max(0.0, min(1.0, -math.log10(evalue) / 10.0))
+
+
+def _structure_score(tmscore: float, qcov: float, evalue: float) -> float:
+    """Function-transfer strength of a structural hit.
+
+    The TM-score is foldseek's normalized structural similarity (about 0.5 is
+    the same-fold boundary), query coverage guards against a high TM-score over
+    only a short shared segment, and the E-value states statistical
+    significance. This mirrors the sequence channel's
+    identity x coverage x significance score, so the structure group carries
+    graded strength instead of a constant value whenever foldseek reports a
+    hit.
+    """
+    fold = max(0.0, min(1.0, tmscore))
+    coverage = max(0.0, min(1.0, qcov))
+    significance = _evalue_score(evalue)
+    return min(1.0, max(0.0, fold * coverage * significance))
 
 
 def _run(cmd: list) -> None:

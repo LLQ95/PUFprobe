@@ -74,6 +74,12 @@ def run(
                 sensitivity=float(search_cfg["foldseek_sensitivity"]),
                 threads=int(workdir.threads),
                 sifts_path=sifts_path,
+                min_tmscore=float(
+                    search_cfg.get("foldseek_min_tmscore",
+                                   foldseek_channel.DEFAULT_MIN_TMSCORE)),
+                max_evalue=float(
+                    search_cfg.get("foldseek_report_evalue",
+                                   foldseek_channel.DEFAULT_FOLDSEEK_EVALUE)),
             )
         elif channel == "hhblits":
             evidence, _ = hhblits_channel.run_hhblits_search(
