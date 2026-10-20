@@ -69,8 +69,10 @@ Re-run this script (resumes) or download on a networked machine and scp to $out.
 mmseqs_db() { # db_id slug prefix fasta_url
     local db_id="$1" slug="$2" prefix="$3" fasta_url="$4"
     local marker="mmseqs_${slug}"
-    if step_done "$marker" && [ -f "${prefix}.index" ]; then
-        log "MMseqs2 $db_id already present at $prefix"; return 0
+    if [ -f "${prefix}.index" ]; then
+        log "MMseqs2 $db_id already present at $prefix"
+        done_step "$marker"
+        return 0
     fi
     log "Building MMseqs2 database '$db_id' at $prefix"
     mkdir -p "$(dirname "$prefix")"
@@ -91,7 +93,8 @@ mmseqs_db() { # db_id slug prefix fasta_url
         "${CONDA_RUN[@]}" mmseqs createindex "$prefix" "$MMSEQS_TMP" --threads "$THREADS"
     fi
     [ -f "${prefix}.index" ] || die "MMseqs2 $db_id missing ${prefix}.index after build"
-    "${CONDA_RUN[@]}" mmseqs linfo "$prefix" | head -3
+    # Sanity check: print the database type (best-effort, not gated on output).
+    "${CONDA_RUN[@]}" mmseqs dbtype "$prefix" 2>/dev/null || true
     done_step "$marker"
 }
 

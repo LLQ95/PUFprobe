@@ -54,7 +54,7 @@ else
     rm -f "$DBDIR/swissprot"* 2>/dev/null || true
     mmseqs createdb uniprot_sprot.fasta "$DBDIR/swissprot" --dbtype 1
     mmseqs createindex "$DBDIR/swissprot" "$TMP" --threads "$THREADS"
-    mmseqs linfo "$DBDIR/swissprot" | head -3
+    mmseqs dbtype "$DBDIR/swissprot" 2>/dev/null || true
     touch "$DONE/mmseqs_swissprot"
     log "Swiss-Prot done"
 fi

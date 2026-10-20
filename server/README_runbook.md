@@ -410,7 +410,7 @@ Success criterion:
 ls /data/liushiwei/PUFprobe/dbs/dbdir/uniref90.index
 ls /data/liushiwei/PUFprobe/dbs/dbdir/foldseek_db.index
 ls /data/liushiwei/PUFprobe/dbs/dbdir/hhblits_db_hhm.ffdata
-conda run -n pufprobe mmseqs linfo /data/liushiwei/PUFprobe/dbs/dbdir/uniref90 | head
+conda run -n pufprobe mmseqs dbtype /data/liushiwei/PUFprobe/dbs/dbdir/uniref90
 ```
 
 This is the step with the highest network risk in the whole run: the full
