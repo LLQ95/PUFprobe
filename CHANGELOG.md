@@ -3,6 +3,20 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.2.3] - 2026-10-20
+
+Hotfix for prepare aligning CDS records after a Bakta run.
+
+### Fixed
+
+- Bakta writes both a complete `<prefix>.faa` and an extra
+  `<prefix>.hypothetical.faa` subset holding only the hypothetical proteins.
+  When a directory was passed to prepare, both matched the `*.faa` recursion and
+  the subset overrode the complete set, so every annotated protein was logged
+  as "could not be aligned to any .faa sequence". The input collection and the
+  sample grouping now skip `*.hypothetical.faa` and always index the complete
+  protein set; a regression test reproduces the Bakta layout
+
 ## [0.2.2] - 2026-10-19
 
 Hotfix for database download failures on the first real TIER A run.
