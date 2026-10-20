@@ -3,6 +3,18 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.2.7] - 2026-10-20
+
+Performance fix for the report stage on a full cohort.
+
+### Fixed
+
+- The report index was built by scanning every prediction for each CDS record,
+  making the stage O(n_cds * n_predictions). On a 70,505-CDS run this was on
+  the order of 5 billion comparisons and appeared to hang after the stage
+  started. Predictions are now indexed once into a dictionary and each CDS is
+  resolved in O(1), reducing the stage to O(n).
+
 ## [0.2.6] - 2026-10-20
 
 Fixes for the fold, search, and context stages after a full fallback run

@@ -68,10 +68,13 @@ def run(workdir: WorkDir, config: Dict[str, Any], formats: List[str]) -> None:
     for fam in families:
         for member in fam.members:
             family_of[member] = fam.family_id
+    # Index predictions once so each CDS is resolved in O(1); a linear scan
+    # inside the CDS loop would make this O(n_cds * n_predictions).
+    pred_by_key = {p.key: p for p in predictions}
     index = []
     for rec in records:
-        pred = next((p for p in predictions if p.key == rec.key), None)
-        accepted = [t for t in (pred.terms if pred else [])]
+        pred = pred_by_key.get(rec.key)
+        accepted = list(pred.terms) if pred is not None else []
         index.append(
             {
                 "key": rec.key,
