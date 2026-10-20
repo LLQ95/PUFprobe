@@ -124,7 +124,7 @@ run_stage() {
     local t0=$SECONDS
     set +e
     "${CONDA_RUN[@]}" pufprobe --workdir "$WD" --threads "$THREADS" \
-        --config "$RUN_CONFIG" "${GLOBAL[@]}" "$name" "$@" 2>&1 | tee "$stagelog"
+        --config "$RUN_CONFIG" ${GLOBAL[@]+"${GLOBAL[@]}"} "$name" "$@" 2>&1 | tee "$stagelog"
     local rc=${PIPESTATUS[0]}
     set -e
     local dt=$((SECONDS - t0))
@@ -138,7 +138,7 @@ run_stage() {
 # 4. Eight stages
 # ---------------------------------------------------------------------------
 run_stage prepare --input "$INPUT_DIR"
-run_stage embed "${EMBED_OPTS[@]}"
+run_stage embed ${EMBED_OPTS[@]+"${EMBED_OPTS[@]}"}
 # fold skips gracefully when torch/ESMFold is unavailable (all families -> skipped).
 run_stage fold
 if [ "${#CHANNELS[@]}" -gt 0 ]; then
