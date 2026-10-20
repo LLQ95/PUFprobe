@@ -1,9 +1,13 @@
 # Central configuration for running PUFprobe on the server
 #
 # This file is also a bash-sourceable key=value file; every script under
-# server/ loads it automatically. All variables can be overridden with
-# environment variables before invoking a script, e.g.:
+# server/ loads it automatically. Every variable can be overridden with an
+# environment variable before invoking a script, e.g.:
 #   THREADS=64 TIER=B bash server/01_download_dbs.sh
+#
+# Each value is written as ${VAR:-default} so that a variable already set in
+# the environment is preserved when the file is sourced; the built-in value is
+# only a default.
 #
 # Sync root: /data/liushiwei/PUFprobe (the scripts derive the repository root
 # automatically, so it does not need to be set here)
@@ -11,92 +15,92 @@
 # ---------------------------------------------------------------------------
 # General
 # ---------------------------------------------------------------------------
-PUFPROBE_ENV=pufprobe          # Dedicated conda environment to create; existing ones are left untouched
-PYTHON_VERSION=3.11
-THREADS=$(nproc 2>/dev/null || echo 8)   # Threads for external tools
-LOG_DIR="$REPO_ROOT/server/logs"
+PUFPROBE_ENV="${PUFPROBE_ENV:-pufprobe}"          # Dedicated conda environment to create; existing ones are left untouched
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
+THREADS="${THREADS:-$(nproc 2>/dev/null || echo 8)}"   # Threads for external tools
+LOG_DIR="${LOG_DIR:-$REPO_ROOT/server/logs}"
 
 # Mirrors (use the upstream sources on a server outside China)
-CONDA_MIRROR_HOST=https://mirrors.tuna.tsinghua.edu.cn/anaconda   # Alternative: https://mirrors.bfsu.edu.cn/anaconda
-PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple            # Alternative: https://mirrors.aliyun.com/pypi/simple
+CONDA_MIRROR_HOST="${CONDA_MIRROR_HOST:-https://mirrors.tuna.tsinghua.edu.cn/anaconda}"   # Alternative: https://mirrors.bfsu.edu.cn/anaconda
+PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"            # Alternative: https://mirrors.aliyun.com/pypi/simple
 # Torch wheels are tried in order by 00_setup_env.sh (GPU: Aliyun -> SJTU ->
 # official cu121; CPU likewise), so they usually need no manual setup. With a
 # special network, export before running, e.g.:
 #   export TORCH_INDEX_URL_GPU=https://mirrors.aliyun.com/pytorch-wheels/cu121/
-TORCH_INDEX_URL_GPU=https://mirrors.aliyun.com/pytorch-wheels/cu121/
-TORCH_INDEX_URL_CPU=https://mirrors.aliyun.com/pytorch-wheels/cpu/
+TORCH_INDEX_URL_GPU="${TORCH_INDEX_URL_GPU:-https://mirrors.aliyun.com/pytorch-wheels/cu121/}"
+TORCH_INDEX_URL_CPU="${TORCH_INDEX_URL_CPU:-https://mirrors.aliyun.com/pytorch-wheels/cpu/}"
 # Portable P2Rank version (bioconda does not provide p2rank; the script
 # downloads it from the GitHub release)
-P2RANK_VERSION=2.5.1
+P2RANK_VERSION="${P2RANK_VERSION:-2.5.1}"
 
 # ---------------------------------------------------------------------------
 # Existing environments (never modified; only invoked through conda run)
 # ---------------------------------------------------------------------------
-BAKTA_ENV=bakta_env            # bakta 1.12.0
-BAKTA_DB=/db/student/metagenome/bakta_db/db
-PROKKA_ENV=checkm              # prokka 1.15.6 lives in this environment
-PROKKA_KINGDOM=Bacteria
+BAKTA_ENV="${BAKTA_ENV:-bakta_env}"            # bakta 1.12.0
+BAKTA_DB="${BAKTA_DB:-/db/student/metagenome/bakta_db/db}"
+PROKKA_ENV="${PROKKA_ENV:-checkm}"              # prokka 1.15.6 lives in this environment
+PROKKA_KINGDOM="${PROKKA_KINGDOM:-Bacteria}"
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 # Contigs directory: must be set to the real path before use (one FASTA file per strain)
-CONTIGS_DIR=
-CONTIG_EXTENSIONS="fna fa fasta fas"
-ANNOT_ROOT="$REPO_ROOT/annotations"
-RUNS_ROOT="$REPO_ROOT/runs"
-RESULTS_DIR="$REPO_ROOT/results"
+CONTIGS_DIR="${CONTIGS_DIR:-}"
+CONTIG_EXTENSIONS="${CONTIG_EXTENSIONS:-fna fa fasta fas}"
+ANNOT_ROOT="${ANNOT_ROOT:-$REPO_ROOT/annotations}"
+RUNS_ROOT="${RUNS_ROOT:-$REPO_ROOT/runs}"
+RESULTS_DIR="${RESULTS_DIR:-$REPO_ROOT/results}"
 
 # Databases
-DB_ROOT=/data/liushiwei/PUFprobe/dbs
+DB_ROOT="${DB_ROOT:-/data/liushiwei/PUFprobe/dbs}"
 # UniProt reference FASTA root (used to build the MMseqs2 database when the
 # built-in downloader fails; switch to a mirror when the official host is slow)
-UNIPROT_BASE="https://ftp.uniprot.org/pub/databases/uniprot/current_release"
-DBDIR="$DB_ROOT/dbdir"        # Directory holding the mmseqs/foldseek/hhblits database prefixes
-CARD_FA="$DB_ROOT/card/protein_fasta_protein_homolog_model.fasta"
-VFDB_FA="$DB_ROOT/vfdb/VFDB_setA_pro.fas"
-TORCH_HOME="$DB_ROOT/torch_cache"
-MMSEQS_TMP="$DB_ROOT/tmp"
+UNIPROT_BASE="${UNIPROT_BASE:-https://ftp.uniprot.org/pub/databases/uniprot/current_release}"
+DBDIR="${DBDIR:-$DB_ROOT/dbdir}"        # Directory holding the mmseqs/foldseek/hhblits database prefixes
+CARD_FA="${CARD_FA:-$DB_ROOT/card/protein_fasta_protein_homolog_model.fasta}"
+VFDB_FA="${VFDB_FA:-$DB_ROOT/vfdb/VFDB_setA_pro.fas}"
+TORCH_HOME="${TORCH_HOME:-$DB_ROOT/torch_cache}"
+MMSEQS_TMP="${MMSEQS_TMP:-$DB_ROOT/tmp}"
 
 # ---------------------------------------------------------------------------
 # 02_annotate.sh
 # ---------------------------------------------------------------------------
-RUN_BAKTA=1                    # 1 runs bakta, 0 skips
-RUN_PROKKA=1                   # 1 runs prokka, 0 skips
-ANNOT_JOBS=2                   # Number of strains annotated in parallel (each strain is still multi-threaded)
-ANNOT_THREADS=8                # bakta/prokka threads per strain
-MAX_SAMPLES=0                  # >0 processes only the first N strains (3 recommended for smoke); 0 means all
+RUN_BAKTA="${RUN_BAKTA:-1}"                    # 1 runs bakta, 0 skips
+RUN_PROKKA="${RUN_PROKKA:-1}"                   # 1 runs prokka, 0 skips
+ANNOT_JOBS="${ANNOT_JOBS:-2}"                   # Number of strains annotated in parallel (each strain is still multi-threaded)
+ANNOT_THREADS="${ANNOT_THREADS:-8}"                # bakta/prokka threads per strain
+MAX_SAMPLES="${MAX_SAMPLES:-0}"                  # >0 processes only the first N strains (3 recommended for smoke); 0 means all
 
 # ---------------------------------------------------------------------------
 # 01_download_dbs.sh
 # ---------------------------------------------------------------------------
-TIER=A                         # A=small smoke databases (run first), B=full databases
+TIER="${TIER:-A}"                         # A=small smoke databases (run first), B=full databases
 # Tier A structure database: PDB is the smallest official foldseek database
 # (~10-15 GB); set to 0 when disk is tight and the foldseek channel is skipped
 # automatically when no database is found.
-SMOKE_FOLDSEEK=1
-SMOKE_HHBLITS=0                # 1 also downloads PDB70 (several GB); usually not needed for smoke
+SMOKE_FOLDSEEK="${SMOKE_FOLDSEEK:-1}"
+SMOKE_HHBLITS="${SMOKE_HHBLITS:-0}"                # 1 also downloads PDB70 (several GB); usually not needed for smoke
 # Tier B
-FULL_FOLDSEEK_DB=Alphafold/Proteome   # Full structure database; Alphafold/UniProt is more complete but larger
-UNIREF30_RELEASE=2023_02
-DOWNLOAD_BFD=0                 # 1 downloads BFD (~1.8 TB unpacked; not downloaded by default)
-WGET_TRIES=5
+FULL_FOLDSEEK_DB="${FULL_FOLDSEEK_DB:-Alphafold/Proteome}"   # Full structure database; Alphafold/UniProt is more complete but larger
+UNIREF30_RELEASE="${UNIREF30_RELEASE:-2023_02}"
+DOWNLOAD_BFD="${DOWNLOAD_BFD:-0}"                 # 1 downloads BFD (~1.8 TB unpacked; not downloaded by default)
+WGET_TRIES="${WGET_TRIES:-5}"
 
 # ---------------------------------------------------------------------------
 # 03_run_pufprobe.sh
 # ---------------------------------------------------------------------------
-BATCH_NAME=salmonella
-ANNOTATION_SOURCE=bakta        # bakta or prokka; each source runs in its own working directory
-ESM_BATCH_SIZE=8
-MIN_PLDDT=70
-HIGH_CONFIDENCE=0.80
-MIN_CONFIDENCE_ANNOTATE=0.80
+BATCH_NAME="${BATCH_NAME:-salmonella}"
+ANNOTATION_SOURCE="${ANNOTATION_SOURCE:-bakta}"        # bakta or prokka; each source runs in its own working directory
+ESM_BATCH_SIZE="${ESM_BATCH_SIZE:-8}"
+MIN_PLDDT="${MIN_PLDDT:-70}"
+HIGH_CONFIDENCE="${HIGH_CONFIDENCE:-0.80}"
+MIN_CONFIDENCE_ANNOTATE="${MIN_CONFIDENCE_ANNOTATE:-0.80}"
 # Without a GPU: 1=run the small 35M model on CPU (slow), 0=use sequence
 # feature fallback (fastest for smoke)
-USE_CPU_ESM=0
+USE_CPU_ESM="${USE_CPU_ESM:-0}"
 # Force no deep models for smoke: 1 fastest; 0 selects automatically by GPU/CPU detection
-FORCE_FALLBACK=1
+FORCE_FALLBACK="${FORCE_FALLBACK:-1}"
 # Whether to run ESMFold on CPU (very slow, default 0; the structure channel is
 # skipped automatically without a GPU)
-FOLD_ON_CPU=0
-WETLAB_TOP_N=30
+FOLD_ON_CPU="${FOLD_ON_CPU:-0}"
+WETLAB_TOP_N="${WETLAB_TOP_N:-30}"
