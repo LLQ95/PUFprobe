@@ -95,7 +95,8 @@ def run(
         )
 
     rows: List[Dict[str, Any]] = []
-    for fam in families:
+    n_folded = 0
+    for fam_index, fam in enumerate(families, start=1):
         plddt: Optional[float] = None
         mean_pae: Optional[float] = None
         pdb_text: Optional[str] = None
@@ -142,6 +143,13 @@ def run(
         fam.structure_path = structure_rel
         fam.plddt = plddt
         fam.fold_status = status
+        if status == "folded":
+            n_folded += 1
+        if fam_index % 25 == 0 or fam_index == len(families):
+            logger.info(
+                "fold progress: %d/%d families processed, %d folded (pLDDT >= %.0f).",
+                fam_index, len(families), n_folded, min_plddt,
+            )
 
         rows.append({
             "family_id": fam.family_id,
