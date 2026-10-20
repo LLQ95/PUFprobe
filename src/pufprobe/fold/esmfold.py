@@ -43,7 +43,13 @@ class LoadedESMFold:
 
 
 def load_esmfold() -> LoadedESMFold:
-    """Load torch and the ESMFold model once, bound to the available device."""
+    """Load torch and the ESMFold model once, bound to the available device.
+
+    The pip-installed ``fair-esm`` package is preferred because it bundles the
+    model code and needs no GitHub access at runtime; ``torch.hub`` is used only
+    as a fallback when fair-esm is not installed. The weights are downloaded
+    from the public checkpoint URL on first use and cached under TORCH_HOME.
+    """
     try:
         import torch  # type: ignore
     except Exception as exc:  # pragma: no cover
@@ -52,7 +58,15 @@ def load_esmfold() -> LoadedESMFold:
         ) from exc
 
     try:
-        model = torch.hub.load("facebookresearch/esm:main", "esmfold_v1")
+        import esm  # type: ignore  # fair-esm installed via pip
+    except ImportError:
+        esm = None
+
+    try:
+        if esm is not None:
+            model = esm.pretrained.esmfold_v1()
+        else:
+            model = torch.hub.load("facebookresearch/esm:main", "esmfold_v1")
     except Exception as exc:  # pragma: no cover
         raise ModelUnavailable(
             f"Could not load ESMFold weights ({exc}). {INSTALL_HINT}"
