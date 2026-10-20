@@ -10,6 +10,7 @@ the channel is skipped (logged) rather than raised. Hits become
 from __future__ import annotations
 
 import math
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -102,15 +103,30 @@ def run_foldseek_search(
 
     try:
         _run([exe, "createdb", str(query_dir), str(qdb)])
+        # -a stores the alignment backtrace so convertalis can emit
+        # cigar-dependent columns (alntmscore, qcov, tcov, ...); without it
+        # convertalis aborts with "Backtrace cigar is missing ... -a flag".
         _run([exe, "search", str(qdb), str(db_path), str(res), str(tmp / "stmp"),
-              "-s", str(sensitivity), "--threads", str(threads)])
+              "-a", "-s", str(sensitivity), "--threads", str(threads)])
         _run([exe, "convertalis", str(qdb), str(db_path), str(res), str(raw_tsv),
               "--format-output", COLS])
-    except (subprocess.SubprocessError, OSError) as exc:
-        logger.warning("Foldseek search failed (%s); channel skipped.", exc)
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip()
+        step = exc.cmd[1] if len(exc.cmd) > 1 else "?"
+        logger.warning(
+            "Foldseek %s failed (exit %d)%s; channel skipped.",
+            step, exc.returncode,
+            (": " + detail[-1500:]) if detail else "",
+        )
+        return {}, None
+    except OSError as exc:
+        logger.warning("Foldseek could not be launched (%s); channel skipped.", exc)
         return {}, None
 
     evidence = parse_foldseek_tsv(raw_tsv, fam_to_rep, sifts)
+    # Keep the scratch directory on failure (useful for manual diagnosis),
+    # but remove it once the parsed TSV has been written to out_dir.
+    shutil.rmtree(tmp, ignore_errors=True)
     return evidence, raw_tsv
 
 

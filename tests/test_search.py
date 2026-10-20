@@ -242,3 +242,8 @@ def test_foldseek_finds_models_from_absolute_structures_dir(tmp_path: Path, monk
     assert calls, "foldseek must be invoked, not skipped on a relative-path check"
     assert calls[0][1] == "createdb"
     assert (out_dir / "_foldseek_query" / "FAM00001.pdb").exists()
+    search_cmd = next(c for c in calls if c[1] == "search")
+    assert "-a" in search_cmd, (
+        "search must request the alignment backtrace (-a) so convertalis can "
+        "emit alntmscore/qcov/tcov without a 'cigar is missing' failure"
+    )
