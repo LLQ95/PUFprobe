@@ -18,10 +18,12 @@ from typing import Dict, List, Optional, Tuple
 from pufprobe import externals
 from pufprobe.logging_utils import get_logger
 from pufprobe.models import Family, Evidence, EvidenceChannel
+from pufprobe.search import sifts as sifts_mod
 
 logger = get_logger(__name__)
 
 INSTALL_HINT = "See docs/server_setup.md for setting up an AlphaFoldDB/PDB foldseek database."
+_SIFTS_NAME = "pdb_chain_pfam.tsv.gz"
 _DB_NAME = "foldseek_db"
 
 COLS = "query,target,alntmscore,prob,evalue,qcov,tcov"
@@ -49,6 +51,7 @@ def run_foldseek_search(
     min_plddt: float,
     sensitivity: float = 9.5,
     threads: int = 1,
+    sifts_path: Optional[Path] = None,
 ) -> Tuple[Dict[str, List[Evidence]], Optional[Path]]:
     info = externals.foldseek()
     if not info.available:
@@ -66,6 +69,15 @@ def run_foldseek_search(
         logger.warning("No foldseek database at dbdir/%s; skipping foldseek channel. %s",
                        _DB_NAME, INSTALL_HINT)
         return {}, None
+
+    sifts = None
+    if sifts_path is not None and Path(sifts_path).exists():
+        sifts = sifts_mod.load_pdb_chain_pfam(Path(sifts_path))
+    if sifts is None:
+        logger.warning(
+            "SIFTS PDB->Pfam mapping not found at dbdir/%s; "
+            "foldseek hits are kept as raw PDB targets.", _SIFTS_NAME
+        )
 
     # write a structure-only query dir (foldseek createdb expects a dir of PDBs)
     query_dir = out_dir / "_foldseek_query"
@@ -95,12 +107,14 @@ def run_foldseek_search(
         logger.warning("Foldseek search failed (%s); channel skipped.", exc)
         return {}, None
 
-    evidence = parse_foldseek_tsv(raw_tsv, fam_to_rep)
+    evidence = parse_foldseek_tsv(raw_tsv, fam_to_rep, sifts)
     return evidence, raw_tsv
 
 
 def parse_foldseek_tsv(
-    tsv_path: Path, fam_to_rep: Dict[str, str]
+    tsv_path: Path,
+    fam_to_rep: Dict[str, str],
+    sifts: Optional[Dict[str, List[str]]] = None,
 ) -> Dict[str, List[Evidence]]:
     evidence: Dict[str, List[Evidence]] = {}
     if not tsv_path.exists():
@@ -119,17 +133,40 @@ def parse_foldseek_tsv(
             except ValueError:
                 continue
             score = max(0.0, min(1.0, prob_f / 100.0)) if prob_f > 1.0 else prob_f
-            ev = Evidence(
-                channel=EvidenceChannel.FOLDSEEK,
-                target_id=target,
-                target_label=target,
-                score=score,
-                evalue=evalue,
-                coverage=float(qcov),
-                details={"tmscore": tm_f, "qcov": float(qcov), "tcov": float(tcov),
-                         "family_id": query_fam},
-            )
-            evidence.setdefault(rep_key, []).append(ev)
+            base_details = {
+                "tmscore": tm_f,
+                "qcov": float(qcov),
+                "tcov": float(tcov),
+                "family_id": query_fam,
+                "pdb_target": target,
+            }
+            pdb_key = sifts_mod.pdb_chain_key(target) if sifts else None
+            pfams = sifts.get(pdb_key, []) if (sifts and pdb_key) else []
+            if pfams:
+                for pfam in pfams:
+                    d = dict(base_details)
+                    d["db"] = "pfam"
+                    ev = Evidence(
+                        channel=EvidenceChannel.FOLDSEEK,
+                        target_id=pfam,
+                        target_label=target,
+                        score=score,
+                        evalue=evalue,
+                        coverage=float(qcov),
+                        details=d,
+                    )
+                    evidence.setdefault(rep_key, []).append(ev)
+            else:
+                ev = Evidence(
+                    channel=EvidenceChannel.FOLDSEEK,
+                    target_id=target,
+                    target_label=target,
+                    score=score,
+                    evalue=evalue,
+                    coverage=float(qcov),
+                    details=base_details,
+                )
+                evidence.setdefault(rep_key, []).append(ev)
     return evidence
 
 

@@ -133,6 +133,20 @@ Download manually: foldseek databases '$db_id' <prefix> <tmp> on a networked mac
     done_step "$marker"
 }
 
+# SIFTS PDB-chain -> Pfam mapping (small, ~4 MB), used to convert Foldseek
+# PDB-chain hits into Pfam family terms.
+sifts_pfam() {
+    local marker="sifts_pfam"
+    local out="$DBDIR/pdb_chain_pfam.tsv.gz"
+    if step_done "$marker" && [ -s "$out" ]; then
+        log "SIFTS PDB->Pfam mapping already present at $out"; return 0
+    fi
+    log "Downloading SIFTS PDB-chain -> Pfam mapping ..."
+    download "https://ftp.ebi.ac.uk/pub/databases/msd/sifts/flatfiles/tsv/pdb_chain_pfam.tsv.gz" "$out"
+    gzip -t "$out" 2>/dev/null || die "SIFTS mapping download is incomplete/corrupt: $out"
+    done_step "$marker"
+}
+
 # ---------------------------------------------------------------------------
 # CARD / VFDB (context channel FASTA inputs)
 # ---------------------------------------------------------------------------
@@ -259,6 +273,7 @@ if [ "$TIER" = "A" ]; then
     sprot_xref
     if [ "$SMOKE_FOLDSEEK" = "1" ]; then
         foldseek_db "PDB" "$DBDIR/foldseek_db" foldseek_smoke
+        sifts_pfam
     fi
     card_vfdb
     preload_esm esm2_t12_35M_UR50D esm2_t12

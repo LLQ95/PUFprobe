@@ -67,11 +67,13 @@ def run(
                 report_evalue=float(search_cfg["report_evalue"]),
             )
         elif channel == "foldseek":
+            sifts_path = dbdir / "pdb_chain_pfam.tsv.gz" if dbdir is not None else None
             evidence, _ = foldseek_channel.run_foldseek_search(
                 families, structures_dir, dbdir, out_dir,
                 min_plddt=float(fold_cfg["min_plddt"]),
                 sensitivity=float(search_cfg["foldseek_sensitivity"]),
                 threads=int(workdir.threads),
+                sifts_path=sifts_path,
             )
         elif channel == "hhblits":
             evidence, _ = hhblits_channel.run_hhblits_search(

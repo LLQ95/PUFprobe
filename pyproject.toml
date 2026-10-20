@@ -33,6 +33,8 @@ dependencies = [
 [project.optional-dependencies]
 ml = [
     "torch>=2.0",
+    "fair-esm>=2.0",
+    "einops>=0.6",
     "scikit-learn>=1.1",
 ]
 cluster = [
@@ -41,6 +43,8 @@ cluster = [
 ]
 full = [
     "torch>=2.0",
+    "fair-esm>=2.0",
+    "einops>=0.6",
     "scikit-learn>=1.1",
     "igraph>=0.10",
     "leidenalg>=0.9",

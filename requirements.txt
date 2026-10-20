@@ -4,6 +4,8 @@ numpy>=1.21
 
 # Optional heavy dependencies (install with: pip install -e ".[ml]"):
 #   torch>=2.0        # ESM-2 embeddings and ESMFold structure prediction (GPU recommended)
+#   fair-esm>=2.0     # ESM-2 and ESMFold model definitions
+#   einops>=0.6       # required by ESMFold inference
 #   scikit-learn>=1.1 # optional isotonic calibration / logistic fusion model
 #   igraph>=0.10      # optional Leiden clustering fallback
 #   leidenalg>=0.9    # optional Leiden clustering fallback
