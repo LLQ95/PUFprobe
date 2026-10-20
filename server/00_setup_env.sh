@@ -159,9 +159,16 @@ else
     log "torch already importable ($(python -c 'import torch; print(torch.__version__)' 2>/dev/null || echo unknown)); skipped."
 fi
 
-log "Installing fair-esm and ESMFold runtime dependencies ..."
-# einops is required by ESMFold but is not pulled in by fair-esm.
-pip install -i "$PIP_INDEX_URL" fair-esm einops || pip install fair-esm einops
+log "Installing fair-esm and preparing ESMFold inference dependencies ..."
+# fair-esm provides the ESM2 models and ESMFold. ESMFold imports OpenFold, but
+# the official OpenFold installer requires nvcc and heavy training-only
+# packages; a dedicated compiler-free installer places the inference-only
+# modules (idempotent). Install fair-esm first if it is missing.
+if ! python -c "import esm" >/dev/null 2>&1; then
+    pip install -i "$PIP_INDEX_URL" fair-esm || pip install fair-esm
+fi
+PYTHON_BIN="$PUF_ENV_PATH/bin/python" PIP_INDEX_URL="$PIP_INDEX_URL" \
+    bash "$SCRIPT_DIR/install_esmfold_inference.sh"
 
 # ---------------------------------------------------------------------------
 # 5b. P2Rank portable release (optional; pocket channel is non-essential)
