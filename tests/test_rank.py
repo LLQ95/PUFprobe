@@ -210,6 +210,60 @@ def test_structure_plus_sequence_ontology_reaches_high_confidence():
     assert term.raw_score >= 0.80
 
 
+def test_strong_sequence_weak_structure_is_capped():
+    # Strong sequence profile (group strength 0.95) plus a near-noise structure
+    # hit (0.85*0.15=0.1275, below the 0.40 group gate). The weak structure
+    # group still appears in the evidence, but it cannot be a second
+    # independent witness, so the term is capped at medium confidence.
+    terms = _fuse(
+        {
+            "sA@g1": [
+                _ev("remote_homology", "PF00001", "strong sequence", 1.0),
+                _ev("foldseek", "PF00001", "weak structure", 0.15),
+            ],
+        }
+    )
+    term = terms["sA@g1"][0]
+    assert sorted(term.evidence_groups) == ["sequence_profile", "structure"]
+    assert term.confidence == pytest.approx(0.60)
+    assert "capped" in term.rationale
+    assert "structure" in term.rationale
+
+
+def test_strong_structure_weak_sequence_is_capped():
+    # Mirror case: strong structure (0.85) but a weak sequence profile
+    # (0.95*0.3=0.285, below the gate) is only one strong group -> capped.
+    terms = _fuse(
+        {
+            "sA@g1": [
+                _ev("foldseek", "PF00001", "strong structure", 1.0),
+                _ev("remote_homology", "PF00001", "weak sequence", 0.3),
+            ],
+        }
+    )
+    term = terms["sA@g1"][0]
+    assert sorted(term.evidence_groups) == ["sequence_profile", "structure"]
+    assert term.confidence == pytest.approx(0.60)
+    assert "capped" in term.rationale
+
+
+def test_two_groups_above_gate_reach_high_confidence():
+    # Sequence 0.95 and structure 0.85*0.7=0.595 both clear the 0.40 gate:
+    # 1 - 0.05*0.405 = 0.97975, high confidence.
+    terms = _fuse(
+        {
+            "sA@g1": [
+                _ev("remote_homology", "PF00001", "strong sequence", 1.0),
+                _ev("foldseek", "PF00001", "solid structure", 0.7),
+            ],
+        }
+    )
+    term = terms["sA@g1"][0]
+    assert sorted(term.evidence_groups) == ["sequence_profile", "structure"]
+    assert term.confidence == pytest.approx(0.97975, abs=1e-4)
+    assert "capped" not in term.rationale
+
+
 def test_within_group_channels_not_double_counted():
     # foldseek and pocket both belong to the structure group; they are not
     # independent and must not be combined as a second group.

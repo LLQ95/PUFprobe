@@ -90,6 +90,15 @@ DEFAULTS: Dict[str, Any] = {
         # "weighted_sum" is the previous linear sum kept for comparison.
         "fusion_method": "group_noisy_or",
         "single_group_cap": 0.60,
+        # A direct group only counts toward require_independent_groups when its
+        # reliability-discounted strength reaches this gate. Weaker groups still
+        # contribute to the noisy-OR score but cannot unlock high confidence, so
+        # a near-noise structure or sequence hit does not masquerade as a
+        # second independent witness. 0.40 corresponds on the sequence side to
+        # roughly 40% identity with good coverage and significance (the
+        # conventional safe-transfer boundary), and on the structure side to a
+        # TM-score ~0.6-0.7 at ~0.6 query coverage.
+        "group_min_strength": 0.40,
         # Reliability prior of a strong hit from each channel, i.e. the upper
         # probability that a perfect hit in that channel transfers function.
         # These are conservative priors for the uncalibrated rule path; a

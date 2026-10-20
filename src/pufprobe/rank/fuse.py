@@ -213,28 +213,49 @@ def _rule_fusion(
     direct_groups = sorted(all_groups - INDIRECT_GROUPS)
     indirect_present = sorted(all_groups & INDIRECT_GROUPS)
 
+    reliability: Dict[str, float] = rank_cfg.get("channel_reliability", {})
+    single_group_cap = float(rank_cfg.get("single_group_cap", 0.60))
+    group_min_strength = float(rank_cfg.get("group_min_strength", 0.40))
+    group_strength = _group_strengths(best_per_channel, reliability)
+    # Only direct groups whose strength clears the gate count as independent
+    # witnesses. Weaker groups still raise the noisy-OR score, but a near-noise
+    # group cannot unlock high confidence on its own.
+    strong_direct = sorted(
+        g for g in direct_groups if group_strength.get(g, 0.0) >= group_min_strength
+    )
+    weak_direct = sorted(
+        g for g in direct_groups if group_strength.get(g, 0.0) < group_min_strength
+    )
+
+    def _cap_note(capped: float) -> str:
+        named = ", ".join(strong_direct) if strong_direct else "none"
+        note = (
+            f"; capped at {capped:.3f}: only {len(strong_direct)} strong direct "
+            f"group(s) ({named}) at gate {group_min_strength:.2f}, need "
+            f"{required_groups} for high confidence"
+        )
+        if weak_direct:
+            note += (
+                f"; weaker group(s) ({', '.join(weak_direct)}) add to the score "
+                f"but do not count as independent witnesses"
+            )
+        if indirect_present:
+            note += f"; indirect group(s) {', '.join(indirect_present)} do not count"
+        return note
+
     if method == "weighted_sum":
         rule_weights: Dict[str, float] = rank_cfg["rule_weights"]
         high_conf = float(rank_cfg["high_confidence"])
         raw = sum(rule_weights.get(ch, 0.0) * score for ch, score in best_per_channel.items())
         raw = min(max(raw, 0.0), 1.0)
         rationale = "score: weighted sum of channel maxima (rule weights)"
-        if len(direct_groups) < required_groups:
+        if len(strong_direct) < required_groups:
             capped = min(raw, high_conf - 0.01)
-            note = (
-                f"; capped at {capped:.3f}: only {len(direct_groups)} direct "
-                f"evidence group(s) ({', '.join(direct_groups)}), need {required_groups}"
-            )
-            if indirect_present:
-                note += f"; indirect group(s) {', '.join(indirect_present)} do not count"
-            rationale += note
+            rationale += _cap_note(capped)
             raw = capped
         return raw, rationale
 
     # Default: group-level noisy-OR.
-    reliability: Dict[str, float] = rank_cfg.get("channel_reliability", {})
-    single_group_cap = float(rank_cfg.get("single_group_cap", 0.60))
-    group_strength = _group_strengths(best_per_channel, reliability)
     ordered = sorted(group_strength)
     fused = _noisy_or([group_strength[g] for g in ordered])
     detail = ", ".join(f"{g}={group_strength[g]:.3f}" for g in ordered)
@@ -242,16 +263,9 @@ def _rule_fusion(
         f"score: noisy-OR over {len(ordered)} evidence group(s) "
         f"[{detail}] = {fused:.3f}"
     )
-    if len(direct_groups) < required_groups:
+    if len(strong_direct) < required_groups:
         capped = min(fused, single_group_cap)
-        note = (
-            f"; capped at {capped:.3f}: only {len(direct_groups)} direct "
-            f"evidence group(s) ({', '.join(direct_groups)}), need {required_groups} "
-            f"for high confidence"
-        )
-        if indirect_present:
-            note += f"; indirect group(s) {', '.join(indirect_present)} do not count"
-        rationale += note
+        rationale += _cap_note(capped)
         fused = capped
     return fused, rationale
 
