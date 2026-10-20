@@ -50,9 +50,16 @@ def test_uninformative_labels() -> None:
     assert mmseqs_mod.is_uninformative("hypothetical protein") is True
     assert mmseqs_mod.is_uninformative("Uncharacterized protein OS=Escherichia coli") is True
     assert mmseqs_mod.is_uninformative("protein of unknown function") is True
+    # A trailing ORF/locus name does not add a function.
+    assert mmseqs_mod.is_uninformative(
+        "Hypothetical protein At1g04090 OS=Arabidopsis thaliana") is True
+    assert mmseqs_mod.is_uninformative(
+        "Uncharacterized protein 002L OS=Frog virus 3") is True
+    assert mmseqs_mod.is_uninformative("Putative protein") is True
     # A specific name (even after a qualifier) still carries function info.
     assert mmseqs_mod.is_uninformative("Putative protein IntB") is False
     assert mmseqs_mod.is_uninformative("Tyrosine recombinase XerC") is False
+    assert mmseqs_mod.is_uninformative("Probable protease SohB") is False
 
 
 def test_description_extraction_from_header() -> None:

@@ -127,7 +127,7 @@ def _evalue_score(evalue: float) -> float:
     return max(0.0, min(1.0, -math.log10(evalue) / 10.0))
 
 
-# Generic product phrases that carry no transferable function.
+# Curation phrases that explicitly mark an entry with no known function.
 _NO_FUNCTION_PHRASES = (
     "hypothetical protein",
     "uncharacterized protein",
@@ -141,22 +141,26 @@ _LEADING_QUALIFIERS = re.compile(r"^(putative|predicted|probable|conserved|possi
 def is_uninformative(label: str) -> bool:
     """True when a target description provides no transferable function.
 
-    A hit to a target that is itself labelled as a hypothetical or
-    uncharacterized protein (for example a Swiss-Prot entry with no function)
-    supports homology but not function, so it is not usable as a function
-    term.
+    A hit to a target that is itself uncharacterized supports homology but not
+    function, so it is not usable as a function term. Swiss-Prot marks such
+    entries with phrases like "Uncharacterized protein" or "Hypothetical
+    protein", often followed by an ORF or locus name (e.g. 002L, At1g04090)
+    that is not a function.
     """
     text = (label or "").strip()
     if not text:
         return True
-    # Drop the organism suffix and any trailing qualifier tokens.
-    text = re.split(r"\s+OS=", text, maxsplit=1)[0]
-    text = text.lower()
-    for phrase in _NO_FUNCTION_PHRASES:
-        text = text.replace(phrase, " ")
-    text = _LEADING_QUALIFIERS.sub("", text)
-    # Remaining meaningful characters represent a specific name or function.
-    residual = re.sub(r"[^a-z0-9]+", "", text)
+    # Drop the organism suffix and any leading speculative qualifier.
+    text = re.split(r"\s+OS=", text, maxsplit=1)[0].strip()
+    text = _LEADING_QUALIFIERS.sub("", text).strip()
+    lowered = text.lower()
+    # Explicit "no known function" markers, even with a trailing ORF name.
+    if any(lowered.startswith(phrase) for phrase in _NO_FUNCTION_PHRASES):
+        return True
+    # Remove generic words; a residual specific name (IntB, XerC) keeps it.
+    for phrase in _NO_FUNCTION_PHRASES + ("protein",):
+        lowered = lowered.replace(phrase, " ")
+    residual = re.sub(r"[^a-z0-9]+", "", lowered)
     return len(residual) < 4
 
 
