@@ -3,6 +3,46 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.3.0] - 2026-10-20
+
+Methodological change to evidence fusion. The previous linear weighted sum
+could not reach high confidence under independent evidence: the channel
+weights summed to 1.0, so even the two strongest independent groups totalled
+only 0.42 and a single channel was capped at 0.20, which made the 0.80
+annotation threshold mathematically unreachable. Fusion is now organised
+around independent evidence groups.
+
+### Changed
+
+- Rule fusion (`rank.fusion_method`, default `group_noisy_or`) now aggregates
+  evidence at the level of independent evidence groups (sequence,
+  sequence_profile, structure, context, database). Within a group the
+  strongest reliability-discounted hit is taken, so channels that share an
+  underlying signal (foldseek and pocket both rely on structure) are not
+  counted twice. Group strengths are combined with a noisy-OR, which is the
+  probability that at least one independent witness supports the term.
+- A term backed by fewer than `rank.require_independent_groups` groups is
+  capped at `rank.single_group_cap` (default 0.60). A single strong homology
+  hit therefore becomes a medium-confidence candidate for manual review,
+  while two strong orthogonal groups (for example sequence profile plus
+  structure, mapped to the same Pfam/EC/GO term) can reach high confidence.
+- Each channel carries a `rank.channel_reliability` prior, the upper
+  probability that a perfect hit transfers function. These are conservative
+  uncalibrated priors for the rule path; a learned fusion model or held-out
+  calibration set overrides them.
+- The legacy linear fusion is retained as `rank.fusion_method: weighted_sum`
+  for comparison.
+- `calibration.json` records the fusion method, single-group cap and required
+  group count in addition to the previous fields.
+
+### Note
+
+- Reaching high confidence still requires independent evidence channels to be
+  present and to agree on the same function term. The structural channel
+  (ESMFold plus Foldseek) and curated databases (CARD/VFDB) must be enabled,
+  and hits from different databases must be mapped to a common ontology
+  (Pfam/EC/GO) before their evidence can be combined.
+
 ## [0.2.7] - 2026-10-20
 
 Performance fix for the report stage on a full cohort.

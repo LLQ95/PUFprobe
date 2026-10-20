@@ -78,7 +78,12 @@ def run(
         context_ev_path.name if context_ev_path.exists() else "missing",
     )
 
-    model, fusion_note = load_weights_model(weights)
+    model, model_note = load_weights_model(weights)
+    if model is None:
+        method = config["rank"].get("fusion_method", "group_noisy_or")
+        fusion_note = f"fusion: {method} over independent evidence groups (rule-based, no learned model)"
+    else:
+        fusion_note = model_note
     predictions = fuse_proteins(records, evidence_map, config, weights_model=model)
 
     # Calibration: no held-out calibration set is produced by the upstream
@@ -109,7 +114,9 @@ def run(
     calibration_payload = {
         **cal_meta,
         "fusion": fusion_note,
+        "fusion_method": config["rank"].get("fusion_method", "group_noisy_or"),
         "high_confidence": config["rank"]["high_confidence"],
+        "single_group_cap": config["rank"].get("single_group_cap"),
         "require_independent_groups": config["rank"]["require_independent_groups"],
         "n_predictions": len(predictions),
         "n_terms": sum(len(p.terms) for p in predictions),

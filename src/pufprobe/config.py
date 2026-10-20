@@ -77,6 +77,27 @@ DEFAULTS: Dict[str, Any] = {
         "high_confidence": 0.80,
         "min_confidence_annotate": 0.80,
         "require_independent_groups": 2,
+        # Rule-based fusion. "group_noisy_or" (default) aggregates evidence at
+        # the level of independent evidence groups: the strongest reliability-
+        # discounted hit is taken per group, and group strengths are combined
+        # with a noisy-OR. Terms backed by fewer than require_independent_groups
+        # are capped at single_group_cap (medium confidence, manual review).
+        # "weighted_sum" is the previous linear sum kept for comparison.
+        "fusion_method": "group_noisy_or",
+        "single_group_cap": 0.60,
+        # Reliability prior of a strong hit from each channel, i.e. the upper
+        # probability that a perfect hit in that channel transfers function.
+        # These are conservative priors for the uncalibrated rule path; a
+        # learned fusion model or held-out calibration set overrides them.
+        "channel_reliability": {
+            "plm_neighbor": 0.75,
+            "foldseek": 0.85,
+            "remote_homology": 0.95,
+            "pocket": 0.60,
+            "context": 0.60,
+            "database": 0.90,
+        },
+        # Linear weights used only when fusion_method == "weighted_sum".
         "rule_weights": {
             "plm_neighbor": 0.18,
             "foldseek": 0.22,

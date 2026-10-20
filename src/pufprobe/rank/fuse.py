@@ -1,14 +1,29 @@
 """Evidence fusion: turn per-channel evidence into candidate function terms.
 
 For every CDS record, all incoming Evidence objects are grouped into candidate
-terms.  A term's raw score is the channel-weighted sum of the best evidence per
-channel::
+terms. Two rule-based fusion methods are supported and selected with
+``rank.fusion_method``.
 
-    raw = sum_c  weight_c * max(score_c for this term)
+The default ``group_noisy_or`` method treats each independent evidence group
+(see ``CHANNEL_GROUPS``) as an approximately independent witness. Within a
+group the strongest reliability-discounted hit is taken; channels in the same
+group are not counted twice (foldseek and pocket both rely on structure, for
+example). Group strengths are then combined with a noisy-OR::
 
-Channels with no evidence for the term contribute nothing.  A diversity rule
-then caps terms that are backed by too few independent evidence groups below
-``rank.high_confidence``.
+    p_g    = max over channels c in group g of (reliability_c * score_c)
+    fused  = 1 - prod_g (1 - p_g)
+
+A term backed by fewer than ``rank.require_independent_groups`` groups is
+capped at ``rank.single_group_cap`` (medium confidence, for manual review),
+because a single line of evidence, however strong, is not enough for automatic
+high-confidence transfer in this second-stage predictor. Two strong,
+orthogonal groups reach high confidence.
+
+The legacy ``weighted_sum`` method retains ``raw = sum_c weight_c *
+max(score_c for this term)`` and caps terms supported by too few independent
+groups below ``rank.high_confidence``; it is kept for comparison.
+
+A learned fusion model (``--weights``) overrides either rule method.
 
 Term type is inferred from the evidence target:
 
@@ -153,6 +168,80 @@ def _term_label(evs: List[Evidence]) -> str:
     return (best.target_label or best.target_id).strip()
 
 
+def _group_strengths(
+    best_per_channel: Dict[str, float],
+    reliability: Dict[str, float],
+) -> Dict[str, float]:
+    """Strongest reliability-discounted strength per independent evidence group.
+
+    Channels inside one group are not independent (foldseek and pocket both
+    rest on the predicted structure), so the group is represented by its
+    strongest discounted hit rather than a sum.
+    """
+    strength: Dict[str, float] = {}
+    for ch, score in best_per_channel.items():
+        group = CHANNEL_GROUPS[ch]
+        discounted = float(reliability.get(ch, 0.5)) * float(score)
+        strength[group] = max(strength.get(group, 0.0), discounted)
+    return strength
+
+
+def _noisy_or(strengths: List[float]) -> float:
+    """Probability that at least one independent witness supports the term."""
+    miss = 1.0
+    for s in strengths:
+        miss *= max(0.0, 1.0 - min(max(s, 0.0), 1.0))
+    return min(max(1.0 - miss, 0.0), 1.0)
+
+
+def _rule_fusion(
+    best_per_channel: Dict[str, float],
+    gevs: List[Evidence],
+    rank_cfg: Dict[str, Any],
+) -> tuple[float, str]:
+    """Fuse one term's channel maxima under the configured rule method."""
+    required_groups = int(rank_cfg["require_independent_groups"])
+    method = str(rank_cfg.get("fusion_method", "group_noisy_or"))
+
+    group_set = sorted({CHANNEL_GROUPS[ev.channel.value] for ev in gevs})
+
+    if method == "weighted_sum":
+        rule_weights: Dict[str, float] = rank_cfg["rule_weights"]
+        high_conf = float(rank_cfg["high_confidence"])
+        raw = sum(rule_weights.get(ch, 0.0) * score for ch, score in best_per_channel.items())
+        raw = min(max(raw, 0.0), 1.0)
+        rationale = "score: weighted sum of channel maxima (rule weights)"
+        if len(group_set) < required_groups:
+            capped = min(raw, high_conf - 0.01)
+            rationale += (
+                f"; capped at {capped:.3f}: only {len(group_set)} independent "
+                f"evidence group(s) ({', '.join(group_set)}), need {required_groups}"
+            )
+            raw = capped
+        return raw, rationale
+
+    # Default: group-level noisy-OR.
+    reliability: Dict[str, float] = rank_cfg.get("channel_reliability", {})
+    single_group_cap = float(rank_cfg.get("single_group_cap", 0.60))
+    group_strength = _group_strengths(best_per_channel, reliability)
+    ordered = sorted(group_strength)
+    fused = _noisy_or([group_strength[g] for g in ordered])
+    detail = ", ".join(f"{g}={group_strength[g]:.3f}" for g in ordered)
+    rationale = (
+        f"score: noisy-OR over {len(ordered)} independent evidence group(s) "
+        f"[{detail}] = {fused:.3f}"
+    )
+    if len(group_set) < required_groups:
+        capped = min(fused, single_group_cap)
+        rationale += (
+            f"; capped at {capped:.3f}: only {len(group_set)} independent "
+            f"evidence group(s) ({', '.join(group_set)}), need {required_groups} "
+            f"for high confidence"
+        )
+        fused = capped
+    return fused, rationale
+
+
 def fuse_proteins(
     records: List[CDSRecord],
     evidence_map: Dict[str, List[Evidence]],
@@ -161,9 +250,6 @@ def fuse_proteins(
 ) -> List[ProteinPrediction]:
     """Fuse evidence for every CDS record into ranked terms."""
     rank_cfg = config["rank"]
-    rule_weights: Dict[str, float] = rank_cfg["rule_weights"]
-    required_groups: int = int(rank_cfg["require_independent_groups"])
-    high_conf: float = float(rank_cfg["high_confidence"])
 
     predictions: List[ProteinPrediction] = []
     seen_go = False
@@ -212,18 +298,7 @@ def fuse_proteins(
                         )
                     )
                     continue
-            raw = sum(rule_weights.get(ch, 0.0) * score for ch, score in best_per_channel.items())
-            raw = min(max(raw, 0.0), 1.0)
-            rationale = "score: weighted sum of channel maxima (rule weights)"
-
-            group_set = sorted({CHANNEL_GROUPS[ev.channel.value] for ev in gevs})
-            if len(group_set) < required_groups:
-                capped = min(raw, high_conf - 0.01)
-                rationale += (
-                    f"; capped at {capped:.3f}: only {len(group_set)} independent "
-                    f"evidence group(s) ({', '.join(group_set)}), need {required_groups}"
-                )
-                raw = capped
+            raw, rationale = _rule_fusion(best_per_channel, gevs, rank_cfg)
 
             terms.append(
                 TermPrediction(
