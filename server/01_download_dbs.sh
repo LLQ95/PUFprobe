@@ -125,11 +125,67 @@ foldseek_db() { # db_id prefix
     log "Building Foldseek database '$db_id' at $prefix"
     # A smoke prefix at the same path must be removed before a full rebuild.
     rm -f "${prefix}"* 2>/dev/null || true
-    "${CONDA_RUN[@]}" foldseek databases "$db_id" "$prefix" "$MMSEQS_TMP" \
-        --threads "$THREADS" \
-        || die "foldseek databases '$db_id' failed (network to foldseek.com is the common cause).
-Download manually: foldseek databases '$db_id' <prefix> <tmp> on a networked machine, then copy."
-    [ -f "${prefix}.index" ] || die "Foldseek $db_id missing ${prefix}.index after build"
+    if ! "${CONDA_RUN[@]}" foldseek databases "$db_id" "$prefix" "$MMSEQS_TMP" \
+        --threads "$THREADS"; then
+        log "foldseek databases '$db_id' failed (network to foldseek.com is the common cause)."
+        return 1
+    fi
+    if [ ! -f "${prefix}.index" ]; then
+        log "Foldseek $db_id missing ${prefix}.index after build."
+        return 1
+    fi
+    done_step "$marker"
+}
+
+# Install the Foldseek PDB database from the PDBe/EBI mirror when the
+# foldseek.com downloader is unreachable. The tarball holds a ready-made
+# Foldseek/MMseqs2 database.
+foldseek_pdb_ebi() {
+    local marker="foldseek_smoke"
+    local prefix="$DBDIR/foldseek_db"
+    if step_done "$marker" && [ -f "${prefix}.index" ]; then
+        log "Foldseek PDB already present at $prefix"; return 0
+    fi
+    local tar="$MMSEQS_TMP/pdb.tar.gz"
+    local url="https://ftp.ebi.ac.uk/pub/databases/msd/foldseek/pdb.tar.gz"
+    if [ -s "$tar" ] && gzip -t "$tar" 2>/dev/null; then
+        log "  existing EBI tarball verified: $tar"
+    else
+        log "Installing Foldseek PDB database from the EBI/PDBe mirror (resumable)."
+        # The tarball is ~1.8 GB; resume with curl rather than restarting.
+        if command -v curl >/dev/null 2>&1; then
+            curl -fL -C - --retry 3 --connect-timeout 60 -o "$tar" "$url" \
+                || die "EBI PDB download failed: $url
+Re-run this script to resume, or fetch it on a networked machine and copy to $tar."
+        else
+            wget -c --tries "$WGET_TRIES" --timeout=120 -O "$tar" "$url" \
+                || die "EBI PDB download failed: $url
+Re-run this script to resume, or fetch it on a networked machine and copy to $tar."
+        fi
+        gzip -t "$tar" 2>/dev/null || die "EBI PDB tarball is incomplete/corrupt: $tar"
+    fi
+    local stage="$MMSEQS_TMP/pdb_ebi"
+    rm -rf "$stage"; mkdir -p "$stage"
+    log "Extracting EBI Foldseek PDB database ..."
+    tar xzf "$tar" -C "$stage"
+    local idx src_prefix
+    # The main index shares the bare database prefix (pdb.index). Auxiliary
+    # indexes carry suffixes (pdb_ca, pdb_h, pdb_ss, pdb_mapping_tmp); pick the
+    # bare-prefix index so the glob below captures every companion file.
+    idx=$(find "$stage" -type f -name "*.index" \
+        | awk -F/ '{n=$NF; sub(/\.index$/, "", n); if (index(n, "_") == 0) {print; exit}}')
+    [ -n "$idx" ] || idx=$(find "$stage" -type f -name "*.index" -print -quit)
+    [ -n "$idx" ] || die "EBI PDB archive did not contain a foldseek *.index file."
+    src_prefix="${idx%.index}"
+    log "  database prefix in archive: $src_prefix"
+    rm -f "${prefix}"* 2>/dev/null || true
+    local f suf
+    for f in "$src_prefix"*; do
+        [ -e "$f" ] || continue
+        suf="${f#"$src_prefix"}"
+        mv "$f" "${prefix}${suf}"
+    done
+    [ -f "${prefix}.index" ] || die "Foldseek PDB missing ${prefix}.index after EBI install"
     done_step "$marker"
 }
 
@@ -272,7 +328,12 @@ if [ "$TIER" = "A" ]; then
         "${UNIPROT_BASE}/knowledgebase/complete/uniprot_sprot.fasta.gz"
     sprot_xref
     if [ "$SMOKE_FOLDSEEK" = "1" ]; then
-        foldseek_db "PDB" "$DBDIR/foldseek_db" foldseek_smoke
+        if [ "${FOLDSEEK_PDB_SOURCE:-auto}" = "ebi" ]; then
+            foldseek_pdb_ebi
+        elif ! foldseek_db "PDB" "$DBDIR/foldseek_db" foldseek_smoke; then
+            log "Official Foldseek PDB download failed; falling back to EBI/PDBe mirror."
+            foldseek_pdb_ebi
+        fi
         sifts_pfam
     fi
     card_vfdb
@@ -292,7 +353,8 @@ elif [ "$TIER" = "B" ]; then
         mmseqs_db "UniRef50" uniref50 "$DBDIR/uniref50" \
             "${UNIPROT_BASE}/uniref/uniref50/uniref50.fasta.gz"
     fi
-    foldseek_db "$FULL_FOLDSEEK_DB" "$DBDIR/foldseek_db" foldseek_full
+    foldseek_db "$FULL_FOLDSEEK_DB" "$DBDIR/foldseek_db" foldseek_full \
+        || die "Foldseek full database failed; check the network or download it manually."
     uniref30
     card_vfdb
     preload_esm esm2_t33_650M_UR50D esm2_t33

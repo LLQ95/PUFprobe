@@ -104,6 +104,22 @@ def test_parse_foldseek_tsv_with_sifts() -> None:
     assert h.details.get("pdb_target") == "101m_A"
 
 
+def test_parse_foldseek_tsv_bare_pdb_id_with_sifts() -> None:
+    # Foldseek writes a bare PDB id for single-chain-type structures.
+    fam_to_rep = {"FAM00001": "sA@g1"}
+    rows = ["FAM00001\t101m\t0.90\t95.0\t1e-10\t0.9\t0.9"]
+    tsv = Path("fs3.tsv")
+    tsv.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    sifts = {"101m_A": ["PF00042"], "101m": ["PF00042"]}
+    try:
+        ev = foldseek_mod.parse_foldseek_tsv(tsv, fam_to_rep, sifts)
+    finally:
+        tsv.unlink()
+    h = ev["sA@g1"][0]
+    assert h.target_id == "PF00042"
+    assert h.details.get("pdb_target") == "101m"
+
+
 def test_load_sifts_pdb_chain_pfam(tmp_path: Path) -> None:
     from pufprobe.search import sifts as sifts_mod
 
@@ -111,8 +127,11 @@ def test_load_sifts_pdb_chain_pfam(tmp_path: Path) -> None:
         "# 2026/10/11 - 19:53\n"
         "PDB\tCHAIN\tSP_PRIMARY\tPFAM_ID\tCOVERAGE\n"
         "101m\tA\tP02185\tPF00042\t1\n"
+        "101m\tB\tP02185\tPF00042\t1\n"
         "102m\tA\tP02185\tPF00042\t1\n"
         "1abc\tA\tP12345\tPF00001\t1\n"
+        "201l\tA\tP11111\tPF00001\t1\n"
+        "201l\tB\tP22222\tPF00002\t1\n"
     )
     gz = tmp_path / "pdb_chain_pfam.tsv.gz"
     import gzip as _gzip
@@ -121,6 +140,10 @@ def test_load_sifts_pdb_chain_pfam(tmp_path: Path) -> None:
     mapping = sifts_mod.load_pdb_chain_pfam(gz)
     assert mapping["101m_A"] == ["PF00042"]
     assert mapping["1abc_A"] == ["PF00001"]
+    # Bare PDB id exposes the union of Pfam families across chains.
+    assert mapping["101m"] == ["PF00042"]
+    assert mapping["201l"] == ["PF00001", "PF00002"]
+    assert sifts_mod.pdb_chain_key("101m") == "101m"
     assert sifts_mod.pdb_chain_key("1abc_A_2") == "1abc_A"
 
 
