@@ -264,6 +264,53 @@ def test_two_groups_above_gate_reach_high_confidence():
     assert "capped" not in term.rationale
 
 
+def test_pdb_template_label_replaced_for_pfam_term():
+    # foldseek maps the PDB-chain template 6jbu_B to PF13855 and scores higher
+    # than the sequence hit; the term must display the functional name rather
+    # than the bare PDB id.
+    terms = _fuse(
+        {
+            "sA@g1": [
+                _ev("foldseek", "PF13855", "6jbu_B", 0.8),
+                _ev("remote_homology", "PF13855", "Leucine-rich repeat protein", 0.5),
+            ],
+        }
+    )
+    term = terms["sA@g1"][0]
+    assert term.term_id == "PF13855"
+    assert term.term_name == "Leucine-rich repeat protein"
+
+
+def test_pfam_with_only_pdb_label_falls_back_to_accession():
+    # A foldseek-only Pfam hit with no functional label anywhere shows the
+    # Pfam accession, which is at least the correct family identifier.
+    terms = _fuse(
+        {
+            "sA@g1": [
+                _ev("foldseek", "PF13855", "6jbu_B", 0.9),
+            ],
+        }
+    )
+    term = terms["sA@g1"][0]
+    assert term.term_type == "Pfam"
+    assert term.term_name == "PF13855"
+
+
+def test_unmapped_structure_term_keeps_pdb_label():
+    # A foldseek hit without a SIFTS Pfam mapping is a structure term; the PDB
+    # template is the result itself and its label must be preserved.
+    terms = _fuse(
+        {
+            "sA@g1": [
+                _ev("foldseek", "4fqe", "4fqe", 0.9),
+            ],
+        }
+    )
+    term = terms["sA@g1"][0]
+    assert term.term_type == "PDB"
+    assert term.term_name == "4fqe"
+
+
 def test_within_group_channels_not_double_counted():
     # foldseek and pocket both belong to the structure group; they are not
     # independent and must not be combined as a second group.

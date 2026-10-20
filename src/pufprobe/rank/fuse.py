@@ -76,6 +76,10 @@ _EC_RE = re.compile(r"^(EC:)?\d+\.\d+\.\d+\.[\dR]+(?:\.[A-Z])?$")
 _PFAM_RE = re.compile(r"^PF\d{5}")
 _COG_RE = re.compile(r"^COG\d{4}")
 _PDB_RE = re.compile(r"^[0-9][A-Za-z0-9]{3}(?:[._-][A-Za-z0-9]+)?$")
+# A bare PDB-chain template label (4fqe, 6jbu_B, 9iqf_B_1, ...); chain and
+# domain suffixes may repeat. Used only to tell structure-template labels
+# apart from human-readable functional names.
+_PDB_LABEL_RE = re.compile(r"^[0-9][A-Za-z0-9]{3}(?:[._-][A-Za-z0-9]+)*$")
 
 # AMR / virulence neighbourhood keywords shared with priority scoring.
 AMR_VIRULENCE_KEYWORDS = (
@@ -168,10 +172,26 @@ def prediction_from_row(row: dict) -> ProteinPrediction:
     )
 
 
-def _term_label(evs: List[Evidence]) -> str:
-    """Pick the most descriptive label from the highest-scoring evidence."""
+def _term_label(evs: List[Evidence], ttype: str, term_id: str) -> str:
+    """Pick the most descriptive label for a term.
+
+    A Foldseek hit carries the PDB-chain template (e.g. ``6jbu_B``) in its
+    label. Once mapped to an ontology term such as Pfam, that PDB id names the
+    template, not the family, so it must not become the term's display name.
+    For ontology terms we skip bare PDB-chain labels, prefer the best
+    human-readable functional label from any evidence, and fall back to the
+    term accession. An unmapped structure term (``ttype`` of ``structure``
+    or ``PDB``) keeps the PDB label because the template is itself the result.
+    """
     best = max(evs, key=lambda e: e.score)
-    return (best.target_label or best.target_id).strip()
+    default = (best.target_label or best.target_id or term_id).strip()
+    if ttype in ("structure", "PDB") or not _PDB_LABEL_RE.match(default):
+        return default
+    for ev in sorted(evs, key=lambda e: e.score, reverse=True):
+        label = (ev.target_label or "").strip()
+        if label and not _PDB_LABEL_RE.match(label):
+            return label
+    return term_id.strip()
 
 
 def _group_strengths(
@@ -318,7 +338,7 @@ def fuse_proteins(
                         TermPrediction(
                             term_type=ttype,
                             term_id=tid,
-                            term_name=_term_label(gevs),
+                            term_name=_term_label(gevs, ttype, tid),
                             raw_score=raw,
                             confidence=raw,
                             evidence=list(gevs),
@@ -332,7 +352,7 @@ def fuse_proteins(
                 TermPrediction(
                     term_type=ttype,
                     term_id=tid,
-                    term_name=_term_label(gevs),
+                    term_name=_term_label(gevs, ttype, tid),
                     raw_score=raw,
                     confidence=raw,
                     evidence=list(gevs),
