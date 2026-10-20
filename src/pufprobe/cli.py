@@ -212,11 +212,14 @@ def _collect_inputs(inputs: List[Path], input_list: Optional[Path]) -> List[Path
             for pattern in ("*.gbk", "*.gbff", "*.genbank"):
                 expanded.extend(sorted(path.rglob(pattern)))
             for faa in sorted(path.rglob("*.faa")):
-                # Bakta also writes <prefix>.hypothetical.faa, a subset holding
-                # only hypothetical proteins. Indexing that subset would make
-                # every annotated protein appear unaligned, so skip it and keep
-                # the complete .faa.
-                if faa.name.endswith(".hypothetical.faa"):
+                # Bakta also writes <prefix>.hypotheticals.faa (plural), a
+                # subset holding only hypothetical proteins. Indexing that
+                # subset would make every annotated protein appear unaligned,
+                # so skip it and keep the complete .faa. Both the released
+                # plural and the singular spelling are tolerated.
+                if faa.name.endswith(".hypotheticals.faa") or faa.name.endswith(
+                    ".hypothetical.faa"
+                ):
                     continue
                 expanded.append(faa)
         else:

@@ -1,9 +1,9 @@
-"""Regression: Bakta's extra <prefix>.hypothetical.faa subset must not be indexed.
+"""Regression: Bakta's extra <prefix>.hypotheticals.faa subset must not be indexed.
 
-Bakta writes both a complete ``<prefix>.faa`` and a ``<prefix>.hypothetical.faa``
-holding only the hypothetical proteins. The prepare stage indexes the complete
-set; if the subset overrides it, every annotated protein is reported as
-unaligned.
+Bakta writes both a complete ``<prefix>.faa`` and a
+``<prefix>.hypotheticals.faa`` holding only the hypothetical proteins. The
+prepare stage indexes the complete set; if the subset overrides it, every
+annotated protein is reported as unaligned.
 """
 
 from pathlib import Path
@@ -34,7 +34,12 @@ def _make_sample(root: Path) -> Path:
         ">GEN_00003\n" + "MR" + "RRR" * 12 + "\n",
         encoding="utf-8",
     )
-    # The subset contains only the hypothetical protein.
+    # The released subset uses the plural "hypotheticals".
+    (sample / "GEN.hypotheticals.faa").write_text(
+        ">GEN_00002\n" + "ML" + "LLL" * 12 + "\n",
+        encoding="utf-8",
+    )
+    # The singular spelling is tolerated as well.
     (sample / "GEN.hypothetical.faa").write_text(
         ">GEN_00002\n" + "ML" + "LLL" * 12 + "\n",
         encoding="utf-8",
@@ -47,6 +52,7 @@ def test_collect_inputs_excludes_hypothetical_subset(tmp_path: Path) -> None:
     paths = _collect_inputs([sample], None)
     names = [p.name for p in paths]
     assert "GEN.faa" in names
+    assert "GEN.hypotheticals.faa" not in names
     assert "GEN.hypothetical.faa" not in names
     assert "GEN.gff3" in names
 

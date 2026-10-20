@@ -66,8 +66,10 @@ def _group_samples(paths: List[Path]) -> Dict[str, Sample]:
             sample.gbk_path = str(path)
         elif kind == "faa":
             # Guard against protein subsets such as Bakta's
-            # <prefix>.hypothetical.faa; the index must be the complete set.
-            if path.name.endswith(".hypothetical.faa"):
+            # <prefix>.hypotheticals.faa; the index must be the complete set.
+            if path.name.endswith(".hypotheticals.faa") or path.name.endswith(
+                ".hypothetical.faa"
+            ):
                 continue
             sample.faa_path = str(path)
     return groups

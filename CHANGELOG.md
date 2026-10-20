@@ -3,6 +3,19 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.2.4] - 2026-10-20
+
+Follow-up to v0.2.3: the Bakta protein subset is named
+`<prefix>.hypotheticals.faa` (plural), while v0.2.3 only matched the singular
+`.hypothetical.faa`, so the subset still overrode the complete set.
+
+### Fixed
+
+- The input collection and sample grouping now skip both
+  `.hypotheticals.faa` (the released Bakta name) and `.hypothetical.faa`; the
+  regression test builds both spellings and asserts the complete `.faa` is the
+  only protein index, with all CDS aligned
+
 ## [0.2.3] - 2026-10-20
 
 Hotfix for prepare aligning CDS records after a Bakta run.
