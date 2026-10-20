@@ -3,12 +3,12 @@
 # 04_summary.sh — collect per-strain/family counts and wet-lab priority tables.
 #
 # Outputs (results/<batch>_<source>/):
-#   per_sample_summary.csv         每株：预测蛋白数、功能条目数、高置信条目数
-#   channel_hits.csv               各证据通道命中数
-#   family_overview.csv            家族大小、折叠状态、pLDDT、优先级
-#   high_confidence_predictions.csv 全部高置信功能预测
-#   wetlab_priorities_topN.csv     无锚点家族湿实验优先级
-#   summary.md                     中文汇总
+#   per_sample_summary.csv         Per strain: predicted proteins, functional terms, high-confidence terms
+#   channel_hits.csv               Number of hits per evidence channel
+#   family_overview.csv            Family size, fold status, pLDDT, priority
+#   high_confidence_predictions.csv  All high-confidence functional predictions
+#   wetlab_priorities_topN.csv     Wet-lab priority for anchorless families
+#   summary.md                     Human-readable summary
 #
 set -euo pipefail
 

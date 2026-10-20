@@ -3,6 +3,20 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.2.5] - 2026-10-20
+
+All code, comments, and documentation shipped on GitHub are now in English; the
+project is being prepared for an English-language publication.
+
+### Changed
+
+- Translated the Chinese text in the server configuration, the Tier A hotfix
+  script, the summary script, and the summary stage header comments
+- Rewrote `server/README_runbook.md` and `docs/server_setup.md` in English
+- Translated the text labels in `docs/architecture.svg`; the figure remains a
+  valid SVG and now renders only English text
+- A repository-wide scan for CJK characters returns no matches
+
 ## [0.2.4] - 2026-10-20
 
 Follow-up to v0.2.3: the Bakta protein subset is named

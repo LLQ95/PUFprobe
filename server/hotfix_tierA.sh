@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
 # =============================================================================
-# hotfix_tierA.sh - 修复 v0.2.1 及更早版本 01_download_dbs.sh 在 Tier A 的下载
+# hotfix_tierA.sh - Repair the Tier A database download for v0.2.1 and earlier
 #
-# 问题（已在 v0.2.2 修复）：
-#   1) MMseqs2 v18 中 Swiss-Prot 的库名是 "UniProtKB/Swiss-Prot"，旧脚本的
-#      "Swiss-Prot" 报 "Selected database ... not found"；
-#   2) 旧回退 mmseqs.com/.../swissprot.tar.gz 已 302 到网页，下载到 HTML；
-#   3) CARD 旧直链 /download/6/*.fasta 现在返回 HTML。
+# Problems (fixed in v0.2.2 and later):
+#   1) In MMseqs2 v18 the Swiss-Prot database is named "UniProtKB/Swiss-Prot";
+#      the old "Swiss-Prot" name aborts with "Selected database ... not found";
+#   2) The old mmseqs.com/.../swissprot.tar.gz fallback now 302-redirects to a
+#      web page, so it downloaded an HTML document;
+#   3) The legacy CARD /download/6/*.fasta link now returns an HTML page.
 #
-# 本脚本直接用已验证可用的官方源把 Tier A 冒烟数据库建好，并写入与
-# 01_download_dbs.sh 一致的完成标记，之后可直接进入第 3 步（02_annotate.sh）。
-# 幂等：已存在且完整的库会跳过，可中断重跑。
+# This script builds the Tier A smoke databases directly from the verified
+# official sources and writes the same completion markers as
+# 01_download_dbs.sh, after which you can continue to 02_annotate.sh. It is
+# idempotent: complete databases are skipped and the script can be re-run.
 #
-# 用法：
-#   bash server/hotfix_tierA.sh                 # 建库（含 Foldseek PDB）
-#   SKIP_FOLDSEEK=1 bash server/hotfix_tierA.sh # 不下载 Foldseek PDB（约省 10-15GB）
+# Usage:
+#   bash server/hotfix_tierA.sh                 # build databases (incl. Foldseek PDB)
+#   SKIP_FOLDSEEK=1 bash server/hotfix_tierA.sh # skip Foldseek PDB (~10-15 GB)
 # =============================================================================
 set -euo pipefail
 
-# ---- 路径（按实际服务器环境；与 server/configs/server_config.yaml 一致） ----
+# ---- Paths (match the real server environment and server_config.yaml) ----
 CONDA_BASE="${CONDA_BASE:-/data/liushiwei/anaconda3}"
 ENV_NAME="pufprobe"
 DB_ROOT="${DB_ROOT:-/data/liushiwei/PUFprobe/dbs}"
@@ -34,11 +36,11 @@ conda activate "$ENV_NAME"
 mkdir -p "$DBDIR" "$TMP" "$DONE" "$DB_ROOT/card" "$DB_ROOT/vfdb"
 log() { echo "[hotfix_tierA $(date +%H:%M:%S)] $*"; }
 
-# ---- 0. 清理旧版失败留下的 HTML 假文件 ---------------------------------------
+# ---- 0. Clean up HTML placeholder files left by the earlier failed run ----
 rm -f "$TMP/swissprot.tar.gz" "$TMP/Swiss-Prot.tar.gz" 2>/dev/null || true
 log "cleaned stale partial files under $TMP"
 
-# ---- 1. Swiss-Prot：UniProt FASTA 自建 MMseqs2 库 ----------------------------
+# ---- 1. Swiss-Prot: build the MMseqs2 database from the UniProt FASTA -------
 if [ -f "$DBDIR/swissprot.index" ] && [ -f "$DONE/mmseqs_swissprot" ]; then
     log "Swiss-Prot MMseqs2 DB already present, skip"
 else
@@ -57,7 +59,7 @@ else
     log "Swiss-Prot done"
 fi
 
-# ---- 2. CARD：官方 latest/data 数据包 ----------------------------------------
+# ---- 2. CARD: canonical latest/data bundle ----------------------------------
 CARD_FA="$DB_ROOT/card/protein_fasta_protein_homolog_model.fasta"
 if [ -s "$CARD_FA" ] && [ -f "$DONE/card_vfdb" ]; then
     log "CARD/VFDB already present, skip"
@@ -75,7 +77,7 @@ else
     log "CARD records: $n_card"
     [ "$n_card" -gt 0 ] || { echo "ERROR: CARD FASTA empty"; exit 1; }
 
-    # ---- 3. VFDB：set A 蛋白集 ----
+    # ---- 3. VFDB: set A protein set ----
     log "Downloading VFDB set A protein (~1.3 MB) ..."
     wget -c -q --show-progress "http://www.mgc.ac.cn/VFs/Down/VFDB_setA_pro.fas.gz" \
         -O "$DB_ROOT/vfdb/VFDB_setA_pro.fas.gz" || \
@@ -87,7 +89,7 @@ else
     touch "$DONE/card_vfdb"
 fi
 
-# ---- 4. Foldseek PDB（可选，失败不阻塞） -------------------------------------
+# ---- 4. Foldseek PDB (optional; failure is non-fatal) -----------------------
 if [ "${SKIP_FOLDSEEK:-0}" = "1" ]; then
     log "SKIP_FOLDSEEK=1, skipping structure database (structure channel will be off)"
 elif [ -f "$DBDIR/foldseek_db.index" ] && [ -f "$DONE/foldseek_smoke" ]; then
@@ -104,7 +106,7 @@ else
     fi
 fi
 
-# ---- 5. ESM-2 35M 权重（可选，冒烟回退特征不需要，失败不阻塞） ---------------
+# ---- 5. ESM-2 35M weights (optional; not needed for fallback smoke) --------
 if [ "${SKIP_ESM:-0}" = "1" ]; then
     log "SKIP_ESM=1, skipping ESM-2 weight preload"
 elif [ -f "$DONE/esm2_t12" ]; then
@@ -127,5 +129,5 @@ ls -lh "$DBDIR"/swissprot.index 2>/dev/null || true
 ls -lh "$DBDIR"/foldseek_db.index 2>/dev/null || echo "  (foldseek PDB not built)"
 echo "  CARD records: $(grep -c '^>' "$DB_ROOT/card/protein_fasta_protein_homolog_model.fasta" || echo 0)"
 echo "  VFDB records: $(grep -c '^>' "$DB_ROOT/vfdb/VFDB_setA_pro.fas" || echo 0)"
-log "Next: edit CONTIGS_DIR in server/configs/server_config.yaml, then"
+log "Next: set CONTIGS_DIR in server/configs/server_config.yaml, then"
 log "      MAX_SAMPLES=3 bash server/02_annotate.sh"

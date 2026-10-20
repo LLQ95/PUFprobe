@@ -33,3 +33,14 @@ weights/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Server runtime (server/ scripts): databases, third-party tools, and outputs
+# are produced on the server and are never committed
+dbs/
+thirdparty/
+runs/
+annotations/
+results/
+logs/
+server/logs/
+

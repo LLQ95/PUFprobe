@@ -201,7 +201,7 @@ def main() -> int:
     family_rows: List[dict] = []
     priority_rows: List[dict] = []
     high_conf_rows: List[dict] = []
-    md_lines = ["# PUFprobe 运行汇总", ""]
+    md_lines = ["# PUFprobe run summary", ""]
 
     for workdir in workdirs:
         result = summarize_run(workdir, args.high_confidence)
@@ -221,23 +221,23 @@ def main() -> int:
         cal = result["calibration"]
         md_lines.append("")
         md_lines.append(
-            f"- 预测蛋白数：{result['n_predictions']}；"
-            f"功能条目总数：{cal.get('n_terms', 'NA')}；"
-            f"无锚点家族：{cal.get('n_unanchored_families', 'NA')}"
+            f"- Proteins with predictions: {result['n_predictions']}; "
+            f"total functional terms: {cal.get('n_terms', 'NA')}; "
+            f"anchorless families: {cal.get('n_unanchored_families', 'NA')}"
         )
         md_lines.append(
-            f"- 高置信阈值：{result['threshold']}；"
-            f"独立证据组数要求：{cal.get('require_independent_groups', 'NA')}"
+            f"- High-confidence threshold: {result['threshold']}; "
+            f"independent evidence groups required: {cal.get('require_independent_groups', 'NA')}"
         )
-        md_lines.append("- 各通道证据数：" + (
-            "、".join(
+        md_lines.append("- Evidence count per channel: " + (
+            ", ".join(
                 f"{channel} {count}"
                 for channel, count in sorted(result["channel_counts"].items())
             )
-            or "无"
+            or "none"
         ))
         md_lines.append("")
-        md_lines.append("| 菌株 | 有功能预测的蛋白 | 功能条目数 | 高置信条目数 |")
+        md_lines.append("| Strain | Proteins with predictions | Functional terms | High-confidence terms |")
         md_lines.append("| --- | --- | --- | --- |")
         for sample, counts in sorted(result["per_sample"].items()):
             md_lines.append(
@@ -246,9 +246,9 @@ def main() -> int:
             )
         md_lines.append("")
         if top:
-            md_lines.append(f"湿实验优先候选 Top {len(top)}：")
+            md_lines.append(f"Top {len(top)} wet-lab priority candidates:")
             md_lines.append("")
-            md_lines.append("| 家族 | 大小 | 优先级 | 依据 |")
+            md_lines.append("| Family | Size | Priority | Reasons |")
             md_lines.append("| --- | --- | --- | --- |")
             family_size = {row["family_id"]: row["size"] for row in result["family_rows"]}
             for row in top:

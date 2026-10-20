@@ -9,27 +9,27 @@
   </defs>
 
   <!-- layer labels -->
-  <text x="105" y="44" text-anchor="middle" font-size="17" fill="#6b7280">输入层</text>
-  <text x="557" y="44" text-anchor="middle" font-size="17" fill="#6b7280">分流与嵌入</text>
-  <text x="847" y="44" text-anchor="middle" font-size="17" fill="#6b7280">并行证据通道</text>
-  <text x="1080" y="44" text-anchor="middle" font-size="17" fill="#6b7280">融合与校准</text>
-  <text x="1335" y="44" text-anchor="middle" font-size="17" fill="#6b7280">输出层</text>
+  <text x="105" y="44" text-anchor="middle" font-size="17" fill="#6b7280">Input</text>
+  <text x="557" y="44" text-anchor="middle" font-size="17" fill="#6b7280">Triage &amp; Embedding</text>
+  <text x="847" y="44" text-anchor="middle" font-size="17" fill="#6b7280">Parallel Evidence</text>
+  <text x="1080" y="44" text-anchor="middle" font-size="17" fill="#6b7280">Fusion &amp; Calibration</text>
+  <text x="1335" y="44" text-anchor="middle" font-size="17" fill="#6b7280">Output</text>
 
   <!-- input group -->
   <rect x="30" y="275" width="150" height="215" rx="10" fill="#fafafa" stroke="#d1d5db"/>
   <rect x="45" y="300" width="120" height="64" rx="4" fill="#e9eaec" stroke="#9aa0a6"/>
   <text x="105" y="328" text-anchor="middle" font-size="15" fill="#1f2937">GFF3 / GBK</text>
-  <text x="105" y="349" text-anchor="middle" font-size="12" fill="#6b7280">上游注释文件</text>
+  <text x="105" y="349" text-anchor="middle" font-size="12" fill="#6b7280">Upstream annotation files</text>
   <rect x="45" y="400" width="120" height="64" rx="4" fill="#e9eaec" stroke="#9aa0a6"/>
-  <text x="105" y="428" text-anchor="middle" font-size="15" fill="#1f2937">蛋白 FASTA</text>
+  <text x="105" y="428" text-anchor="middle" font-size="15" fill="#1f2937">Protein FASTA</text>
   <text x="105" y="449" text-anchor="middle" font-size="12" fill="#6b7280">(.faa)</text>
 
   <!-- prepare -->
   <rect x="235" y="330" width="175" height="100" rx="8" fill="#f3f4f6" stroke="#9ca3af"/>
   <text x="322" y="360" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2937">pufprobe prepare</text>
-  <text x="322" y="384" text-anchor="middle" font-size="13" fill="#374151">识别 hypothetical /</text>
+  <text x="322" y="384" text-anchor="middle" font-size="13" fill="#374151">Detect hypothetical /</text>
   <text x="322" y="403" text-anchor="middle" font-size="13" fill="#374151">uncharacterized / DUF</text>
-  <text x="322" y="422" text-anchor="middle" font-size="13" fill="#374151">跨基因组去重</text>
+  <text x="322" y="422" text-anchor="middle" font-size="13" fill="#374151">Cross-genome dedup</text>
 
   <line x1="180" y1="382" x2="230" y2="382" stroke="#6b7280" stroke-width="1.6" marker-end="url(#arr1)"/>
 
@@ -41,25 +41,25 @@
 
   <!-- true-gene screening -->
   <rect x="460" y="120" width="195" height="90" rx="8" fill="#f3f4f6" stroke="#6b7280"/>
-  <text x="557" y="148" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2937">真基因判别</text>
-  <text x="557" y="172" text-anchor="middle" font-size="13" fill="#374151">AntiFam · 长度/编码信号</text>
-  <text x="557" y="192" text-anchor="middle" font-size="13" fill="#374151">微共线性保守性</text>
+  <text x="557" y="148" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2937">Real-gene triage</text>
+  <text x="557" y="172" text-anchor="middle" font-size="13" fill="#374151">AntiFam · length/coding signals</text>
+  <text x="557" y="192" text-anchor="middle" font-size="13" fill="#374151">Microsynteny conservation</text>
 
   <line x1="557" y1="210" x2="557" y2="343" stroke="#6b7280" stroke-width="1.4"/>
   <rect x="460" y="235" width="195" height="30" rx="5" fill="#f9fafb" stroke="#d1d5db"/>
-  <text x="557" y="255" text-anchor="middle" font-size="12.5" fill="#374151">likely_false_orf：移出推断队列</text>
+  <text x="557" y="255" text-anchor="middle" font-size="12.5" fill="#374151">likely_false_orf: remove from queue</text>
   <rect x="460" y="273" width="195" height="30" rx="5" fill="#f9fafb" stroke="#d1d5db"/>
-  <text x="557" y="293" text-anchor="middle" font-size="12.5" fill="#374151">true_protein_unknown：进入通道</text>
+  <text x="557" y="293" text-anchor="middle" font-size="12.5" fill="#374151">true_protein_unknown: send to channels</text>
   <rect x="460" y="311" width="195" height="30" rx="5" fill="#f9fafb" stroke="#d1d5db"/>
-  <text x="557" y="331" text-anchor="middle" font-size="12.5" fill="#374151">borderline：保留但降权重</text>
+  <text x="557" y="331" text-anchor="middle" font-size="12.5" fill="#374151">borderline: keep but down-weight</text>
 
   <!-- pLM embed + cluster -->
   <line x1="557" y1="303" x2="557" y2="427" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arr1)"/>
   <rect x="460" y="430" width="195" height="115" rx="8" fill="#dbeafe" stroke="#2563eb"/>
-  <text x="557" y="460" text-anchor="middle" font-size="16" font-weight="600" fill="#1e3a8a">pLM 嵌入与聚类</text>
+  <text x="557" y="460" text-anchor="middle" font-size="16" font-weight="600" fill="#1e3a8a">pLM embedding &amp; clustering</text>
   <text x="557" y="484" text-anchor="middle" font-size="13" fill="#1e40af">ESM-2 650M（GPU）</text>
-  <text x="557" y="504" text-anchor="middle" font-size="13" fill="#1e40af">CPU 降级 8M / 150M</text>
-  <text x="557" y="526" text-anchor="middle" font-size="13" fill="#1e40af">MMseqs2 家族聚类</text>
+  <text x="557" y="504" text-anchor="middle" font-size="13" fill="#1e40af">CPU fallback 8M / 150M</text>
+  <text x="557" y="526" text-anchor="middle" font-size="13" fill="#1e40af">MMseqs2 family clustering</text>
 
   <!-- bus to channels -->
   <line x1="655" y1="487" x2="690" y2="487" stroke="#6b7280" stroke-width="1.6"/>
@@ -71,24 +71,24 @@
 
   <!-- channels -->
   <rect x="730" y="70" width="235" height="115" rx="8" fill="#ffedd5" stroke="#ea580c"/>
-  <text x="847" y="100" text-anchor="middle" font-size="16" font-weight="600" fill="#9a3412">结构折叠路由</text>
-  <text x="847" y="126" text-anchor="middle" font-size="13" fill="#9a3412">ESMFold 默认 · AF2 可选</text>
-  <text x="847" y="148" text-anchor="middle" font-size="13" fill="#9a3412">pLDDT / PAE 质量门</text>
+  <text x="847" y="100" text-anchor="middle" font-size="16" font-weight="600" fill="#9a3412">Structure folding routing</text>
+  <text x="847" y="126" text-anchor="middle" font-size="13" fill="#9a3412">ESMFold default · AF2 optional</text>
+  <text x="847" y="148" text-anchor="middle" font-size="13" fill="#9a3412">pLDDT / PAE quality gate</text>
 
   <rect x="730" y="205" width="235" height="115" rx="8" fill="#ffedd5" stroke="#ea580c"/>
-  <text x="847" y="235" text-anchor="middle" font-size="16" font-weight="600" fill="#9a3412">结构搜索</text>
+  <text x="847" y="235" text-anchor="middle" font-size="16" font-weight="600" fill="#9a3412">Structure search</text>
   <text x="847" y="261" text-anchor="middle" font-size="13" fill="#9a3412">Foldseek 3Di · TM-Vec</text>
-  <text x="847" y="283" text-anchor="middle" font-size="13" fill="#9a3412">HHblits 远缘同源</text>
+  <text x="847" y="283" text-anchor="middle" font-size="13" fill="#9a3412">HHblits remote homology</text>
 
   <rect x="730" y="340" width="235" height="115" rx="8" fill="#ffedd5" stroke="#ea580c"/>
-  <text x="847" y="370" text-anchor="middle" font-size="16" font-weight="600" fill="#9a3412">口袋催化证据</text>
-  <text x="847" y="396" text-anchor="middle" font-size="13" fill="#9a3412">P2Rank 口袋预测</text>
-  <text x="847" y="418" text-anchor="middle" font-size="13" fill="#9a3412">保守残基几何模板</text>
+  <text x="847" y="370" text-anchor="middle" font-size="16" font-weight="600" fill="#9a3412">Pocket &amp; catalytic evidence</text>
+  <text x="847" y="396" text-anchor="middle" font-size="13" fill="#9a3412">P2Rank pocket prediction</text>
+  <text x="847" y="418" text-anchor="middle" font-size="13" fill="#9a3412">Conserved-residue geometry templates</text>
 
   <rect x="730" y="475" width="235" height="115" rx="8" fill="#dcfce7" stroke="#16a34a"/>
-  <text x="847" y="505" text-anchor="middle" font-size="16" font-weight="600" fill="#166534">基因组上下文</text>
-  <text x="847" y="531" text-anchor="middle" font-size="13" fill="#166534">操纵子邻居 · 系统发育谱</text>
-  <text x="847" y="553" text-anchor="middle" font-size="13" fill="#166534">微共线性 · STRING</text>
+  <text x="847" y="505" text-anchor="middle" font-size="16" font-weight="600" fill="#166534">Genomic context</text>
+  <text x="847" y="531" text-anchor="middle" font-size="13" fill="#166534">Operon neighbors · phylogenetic profile</text>
+  <text x="847" y="553" text-anchor="middle" font-size="13" fill="#166534">Microsynteny · STRING</text>
 
   <!-- arrows to fusion -->
   <path d="M965,127 C 1000,127 1000,255 1016,272" fill="none" stroke="#6b7280" stroke-width="1.6" marker-end="url(#arr1)"/>
@@ -99,26 +99,26 @@
   <!-- fusion circle -->
   <circle cx="1080" cy="300" r="62" fill="#e9d5ff" stroke="#9333ea" stroke-width="2"/>
   <text x="1080" y="292" text-anchor="middle" font-size="15" font-weight="600" fill="#6b21a8">learning-to-rank</text>
-  <text x="1080" y="316" text-anchor="middle" font-size="15" fill="#6b21a8">多证据融合</text>
+  <text x="1080" y="316" text-anchor="middle" font-size="15" fill="#6b21a8">Multi-evidence fusion</text>
 
   <rect x="1015" y="420" width="160" height="78" rx="8" fill="#faf5ff" stroke="#c084fc"/>
-  <text x="1095" y="446" text-anchor="middle" font-size="14" font-weight="600" fill="#6b21a8">置信度校准</text>
-  <text x="1095" y="468" text-anchor="middle" font-size="12.5" fill="#6b21a8">温度缩放 / 保序回归</text>
+  <text x="1095" y="446" text-anchor="middle" font-size="14" font-weight="600" fill="#6b21a8">Confidence calibration</text>
+  <text x="1095" y="468" text-anchor="middle" font-size="12.5" fill="#6b21a8">Temperature scaling / isotonic regression</text>
   <text x="1095" y="488" text-anchor="middle" font-size="12.5" fill="#6b21a8">ECE · Brier score</text>
 
   <!-- outputs -->
   <line x1="1142" y1="300" x2="1225" y2="300" stroke="#6b7280" stroke-width="1.6" marker-end="url(#arr1)"/>
   <rect x="1230" y="170" width="210" height="80" rx="6" fill="#fee2e2" stroke="#b91c1c"/>
-  <text x="1335" y="202" text-anchor="middle" font-size="15" font-weight="600" fill="#7f1d1d">逐蛋白证据报告</text>
+  <text x="1335" y="202" text-anchor="middle" font-size="15" font-weight="600" fill="#7f1d1d">Per-protein evidence report</text>
   <text x="1335" y="226" text-anchor="middle" font-size="13" fill="#7f1d1d">JSON / TSV / HTML</text>
   <rect x="1230" y="280" width="210" height="80" rx="6" fill="#fee2e2" stroke="#b91c1c"/>
-  <text x="1335" y="312" text-anchor="middle" font-size="15" font-weight="600" fill="#7f1d1d">回填 GFF3 / GBK</text>
-  <text x="1335" y="336" text-anchor="middle" font-size="13" fill="#7f1d1d">PUFprobe 命名空间隔离</text>
+  <text x="1335" y="312" text-anchor="middle" font-size="15" font-weight="600" fill="#7f1d1d">Backfill GFF3 / GBK</text>
+  <text x="1335" y="336" text-anchor="middle" font-size="13" fill="#7f1d1d">PUFprobe namespace isolation</text>
   <rect x="1230" y="390" width="210" height="80" rx="6" fill="#fee2e2" stroke="#b91c1c"/>
-  <text x="1335" y="422" text-anchor="middle" font-size="15" font-weight="600" fill="#7f1d1d">PUF 家族目录</text>
-  <text x="1335" y="446" text-anchor="middle" font-size="13" fill="#7f1d1d">新家族优先级排序</text>
+  <text x="1335" y="422" text-anchor="middle" font-size="15" font-weight="600" fill="#7f1d1d">PUF family catalog</text>
+  <text x="1335" y="446" text-anchor="middle" font-size="13" fill="#7f1d1d">New-family priority ranking</text>
 
   <!-- dashed evidence loopback -->
   <path d="M1335,470 V635 H557 V548" fill="none" stroke="#9333ea" stroke-width="1.5" stroke-dasharray="6,5" marker-end="url(#arr1p)"/>
-  <text x="720" y="660" text-anchor="middle" font-size="13" fill="#7c3aed">实线：数据流　　虚线：证据链回注</text>
+  <text x="720" y="660" text-anchor="middle" font-size="13" fill="#7c3aed">Solid: data flow    Dashed: evidence backfill</text>
 </svg>

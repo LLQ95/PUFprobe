@@ -1,53 +1,58 @@
-# PUFprobe 服务器运行集中配置
+# Central configuration for running PUFprobe on the server
 #
-# 本文件同时是 bash 可 source 的键值文件（key=value），server/ 下所有脚本
-# 都会自动加载它。所有变量都可以在调用脚本前用环境变量覆盖，例如：
+# This file is also a bash-sourceable key=value file; every script under
+# server/ loads it automatically. All variables can be overridden with
+# environment variables before invoking a script, e.g.:
 #   THREADS=64 TIER=B bash server/01_download_dbs.sh
 #
-# 同步根目录：/data/liushiwei/PUFprobe（脚本会自动推导仓库根目录，无需手填）
+# Sync root: /data/liushiwei/PUFprobe (the scripts derive the repository root
+# automatically, so it does not need to be set here)
 
 # ---------------------------------------------------------------------------
-# 通用
+# General
 # ---------------------------------------------------------------------------
-PUFPROBE_ENV=pufprobe          # 新建的独立 conda 环境名，不改动现有环境
+PUFPROBE_ENV=pufprobe          # Dedicated conda environment to create; existing ones are left untouched
 PYTHON_VERSION=3.11
-THREADS=$(nproc 2>/dev/null || echo 8)   # 外部工具线程数
+THREADS=$(nproc 2>/dev/null || echo 8)   # Threads for external tools
 LOG_DIR="$REPO_ROOT/server/logs"
 
-# 国内镜像（如在境外服务器运行，可改为官方源）
-CONDA_MIRROR_HOST=https://mirrors.tuna.tsinghua.edu.cn/anaconda   # 备选：https://mirrors.bfsu.edu.cn/anaconda
-PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple            # 备选：https://mirrors.aliyun.com/pypi/simple
-# torch 轮子源由 00_setup_env.sh 依次尝试（GPU：阿里云→上海交大→官方 cu121；
-# CPU 同理），一般无需手动设置；网络特殊时可在运行脚本前 export 覆盖，例如：
+# Mirrors (use the upstream sources on a server outside China)
+CONDA_MIRROR_HOST=https://mirrors.tuna.tsinghua.edu.cn/anaconda   # Alternative: https://mirrors.bfsu.edu.cn/anaconda
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple            # Alternative: https://mirrors.aliyun.com/pypi/simple
+# Torch wheels are tried in order by 00_setup_env.sh (GPU: Aliyun -> SJTU ->
+# official cu121; CPU likewise), so they usually need no manual setup. With a
+# special network, export before running, e.g.:
 #   export TORCH_INDEX_URL_GPU=https://mirrors.aliyun.com/pytorch-wheels/cu121/
 TORCH_INDEX_URL_GPU=https://mirrors.aliyun.com/pytorch-wheels/cu121/
 TORCH_INDEX_URL_CPU=https://mirrors.aliyun.com/pytorch-wheels/cpu/
-# P2Rank 便携版版本（bioconda 不提供 p2rank，由脚本从 GitHub Release 下载）
+# Portable P2Rank version (bioconda does not provide p2rank; the script
+# downloads it from the GitHub release)
 P2RANK_VERSION=2.5.1
 
 # ---------------------------------------------------------------------------
-# 已有环境（严禁改动，只通过 conda run 调用）
+# Existing environments (never modified; only invoked through conda run)
 # ---------------------------------------------------------------------------
 BAKTA_ENV=bakta_env            # bakta 1.12.0
 BAKTA_DB=/db/student/metagenome/bakta_db/db
-PROKKA_ENV=checkm              # prokka 1.15.6 位于该环境
+PROKKA_ENV=checkm              # prokka 1.15.6 lives in this environment
 PROKKA_KINGDOM=Bacteria
 
 # ---------------------------------------------------------------------------
-# 路径
+# Paths
 # ---------------------------------------------------------------------------
-# contigs 目录：使用前必须改成真实路径（每个菌株一个 fasta 文件）
+# Contigs directory: must be set to the real path before use (one FASTA file per strain)
 CONTIGS_DIR=
 CONTIG_EXTENSIONS="fna fa fasta fas"
 ANNOT_ROOT="$REPO_ROOT/annotations"
 RUNS_ROOT="$REPO_ROOT/runs"
 RESULTS_DIR="$REPO_ROOT/results"
 
-# 数据库
+# Databases
 DB_ROOT=/data/liushiwei/PUFprobe/dbs
-# UniProt 参考 FASTA 根（MMseqs2 内置下载失败时用于自建库；官方源慢可改镜像）
+# UniProt reference FASTA root (used to build the MMseqs2 database when the
+# built-in downloader fails; switch to a mirror when the official host is slow)
 UNIPROT_BASE="https://ftp.uniprot.org/pub/databases/uniprot/current_release"
-DBDIR="$DB_ROOT/dbdir"        # mmseqs/foldseek/hhblits 库前缀所在目录
+DBDIR="$DB_ROOT/dbdir"        # Directory holding the mmseqs/foldseek/hhblits database prefixes
 CARD_FA="$DB_ROOT/card/protein_fasta_protein_homolog_model.fasta"
 VFDB_FA="$DB_ROOT/vfdb/VFDB_setA_pro.fas"
 TORCH_HOME="$DB_ROOT/torch_cache"
@@ -56,39 +61,42 @@ MMSEQS_TMP="$DB_ROOT/tmp"
 # ---------------------------------------------------------------------------
 # 02_annotate.sh
 # ---------------------------------------------------------------------------
-RUN_BAKTA=1                    # 1 跑 bakta，0 跳过
-RUN_PROKKA=1                   # 1 跑 prokka，0 跳过
-ANNOT_JOBS=2                   # 同时并行注释的菌株数（单菌株内部仍多线程）
-ANNOT_THREADS=8                # 每个菌株的 bakta/prokka 线程数
-MAX_SAMPLES=0                  # >0 时只处理前 N 株（冒烟建议 3）；0 表示全部
+RUN_BAKTA=1                    # 1 runs bakta, 0 skips
+RUN_PROKKA=1                   # 1 runs prokka, 0 skips
+ANNOT_JOBS=2                   # Number of strains annotated in parallel (each strain is still multi-threaded)
+ANNOT_THREADS=8                # bakta/prokka threads per strain
+MAX_SAMPLES=0                  # >0 processes only the first N strains (3 recommended for smoke); 0 means all
 
 # ---------------------------------------------------------------------------
 # 01_download_dbs.sh
 # ---------------------------------------------------------------------------
-TIER=A                         # A=冒烟小库（先跑），B=全量库
-# 档位 A 结构库：PDB 是最小的官方 foldseek 库（约 10–15 GB）；
-# 磁盘紧张可设为 0，foldseek 通道会在检测到无库时自动跳过。
+TIER=A                         # A=small smoke databases (run first), B=full databases
+# Tier A structure database: PDB is the smallest official foldseek database
+# (~10-15 GB); set to 0 when disk is tight and the foldseek channel is skipped
+# automatically when no database is found.
 SMOKE_FOLDSEEK=1
-SMOKE_HHBLITS=0                # 1 则额外下载 PDB70（数 GB），冒烟一般不需要
-# 档位 B
-FULL_FOLDSEEK_DB=Alphafold/Proteome   # 全量结构库；Alphafold/UniProt 更全但更大
+SMOKE_HHBLITS=0                # 1 also downloads PDB70 (several GB); usually not needed for smoke
+# Tier B
+FULL_FOLDSEEK_DB=Alphafold/Proteome   # Full structure database; Alphafold/UniProt is more complete but larger
 UNIREF30_RELEASE=2023_02
-DOWNLOAD_BFD=0                 # 1 下载 BFD（解包约 1.8 TB，默认不下载）
+DOWNLOAD_BFD=0                 # 1 downloads BFD (~1.8 TB unpacked; not downloaded by default)
 WGET_TRIES=5
 
 # ---------------------------------------------------------------------------
 # 03_run_pufprobe.sh
 # ---------------------------------------------------------------------------
 BATCH_NAME=salmonella
-ANNOTATION_SOURCE=bakta        # bakta 或 prokka；两种来源各跑一个工作目录
+ANNOTATION_SOURCE=bakta        # bakta or prokka; each source runs in its own working directory
 ESM_BATCH_SIZE=8
 MIN_PLDDT=70
 HIGH_CONFIDENCE=0.80
 MIN_CONFIDENCE_ANNOTATE=0.80
-# 无 GPU 时：1=CPU 上跑 35M 小模型（慢），0=直接用序列特征回退（冒烟最快）
+# Without a GPU: 1=run the small 35M model on CPU (slow), 0=use sequence
+# feature fallback (fastest for smoke)
 USE_CPU_ESM=0
-# 冒烟时强制不走任何深度模型：1 最快；0 按 GPU/CPU 检测自动选择
+# Force no deep models for smoke: 1 fastest; 0 selects automatically by GPU/CPU detection
 FORCE_FALLBACK=1
-# CPU 环境是否仍跑 ESMFold（很慢，默认 0；无 GPU 时结构通道自动跳过）
+# Whether to run ESMFold on CPU (very slow, default 0; the structure channel is
+# skipped automatically without a GPU)
 FOLD_ON_CPU=0
 WETLAB_TOP_N=30

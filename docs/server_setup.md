@@ -1,44 +1,51 @@
-# PUFprobe 服务器部署清单
+# PUFprobe Server Deployment Checklist
 
-本文档面向一台全新的 Linux 服务器（Ubuntu 22.04 / CentOS 7+，x86_64，建议带 NVIDIA GPU），照本清单逐条执行即可搭起 PUFprobe 全流程环境。无 GPU 也能跑通 CPU 回退路径，但 ESM-2 嵌入与 ESMFold 会明显变慢。
+This document describes how to set up the full PUFprobe environment on a fresh
+Linux server (Ubuntu 22.04 / CentOS 7+, x86_64, ideally with an NVIDIA GPU).
+Work through the sections in order. The CPU fallback path runs without a GPU,
+but ESM-2 embedding and ESMFold are noticeably slower.
 
 ---
 
-## 1. 获取代码与 GitHub 认证
+## 1. Getting the code and authenticating with GitHub
 
-### 1.1 有 gh CLI（推荐）
+### 1.1 With the gh CLI (recommended)
 
 ```bash
-# 方式一：浏览器设备码流程
+# Option A: browser device-code flow
 gh auth login
 
-# 方式二：直接用 Token 登录（CI / 无交互服务器常用）
+# Option B: log in with a token directly (common for CI / non-interactive servers)
 echo "<YOUR_PAT>" | gh auth login --with-token
 ```
 
-PAT 所需最小 scope：
+Minimum PAT scopes:
 
-- `repo`（私有仓库读写）
-- `read:org`（读取组织信息）
+- `repo` (read/write private repositories)
+- `read:org` (read organization information)
 
-### 1.2 没有 gh CLI
+### 1.2 Without the gh CLI
 
 ```bash
-# 克隆后把 remote 换成带 PAT 的地址
+# After cloning, replace the remote with a token-authenticated URL
 git clone https://github.com/LLQ95/PUFprobe.git
 cd PUFprobe
 git remote set-url origin https://<YOUR_PAT>@github.com/LLQ95/PUFprobe.git
 ```
 
-> 安全提醒：
-> - 不要把 PAT 写进任何会提交的文件（`.git/config` 是本地的，可以；仓库内任何文件都不行）。
-> - 推荐用 `git config credential.helper store` 配合 `~/.git-credentials`（权限 600），或直接用 `gh auth login`，避免 PAT 出现在 shell 历史里：`export GH_TOKEN=<PAT>` 后 `unset` 掉历史中的明文。
+> Security notes:
+> - Do not put the PAT in any file that is committed (`.git/config` is local and
+>   fine; nothing inside the repository is).
+> - Prefer `git config credential.helper store` with `~/.git-credentials`
+>   (permission 600), or simply use `gh auth login`, to avoid the token appearing
+>   in the shell history. You can `export GH_TOKEN=<PAT>` and then clear the
+>   plaintext from history.
 
 ---
 
-## 2. Conda / Mamba 环境
+## 2. Conda / Mamba environment
 
-### 2.1 安装 micromamba（最轻量）
+### 2.1 Install micromamba (lightest option)
 
 ```bash
 curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj -C ~/ bin/micromamba
@@ -46,7 +53,7 @@ curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj -C ~/ 
 source ~/.bashrc
 ```
 
-### 2.2 或安装 Miniconda
+### 2.2 Or install Miniconda
 
 ```bash
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
@@ -55,52 +62,54 @@ bash Miniconda3-latest-Linux-x86_64.sh -b
 source ~/.bashrc
 ```
 
-### 2.3 创建环境
+### 2.3 Create the environment
 
-用仓库自带的 `environment.yml`：
+Use the `environment.yml` bundled with the repository:
 
 ```bash
 cd PUFprobe
-micromamba env create -f environment.yml   # 或 conda env create -f environment.yml
+micromamba env create -f environment.yml   # or conda env create -f environment.yml
 micromamba activate pufprobe
 ```
 
-如果不想用 yml，逐条安装等价命令：
+If you prefer not to use the yml, the equivalent commands are:
 
 ```bash
 micromamba create -n pufprobe -c conda-forge -c bioconda \
     python=3.11 click numpy pytest \
-    mmseqs2>=13 foldseek>=8 hhsuite p2rank scikit-learn
+    mmseqs2>=13 foldseek>=8 hhsuite scikit-learn
 micromamba activate pufprobe
 pip install -e .
 ```
 
-channel 顺序：先 `conda-forge`，再 `bioconda`，所有生物工具都从这两个频道出。
+Channel order matters: use `conda-forge` first, then `bioconda`; all bioinformatics
+tools come from these two channels. P2Rank is not available on bioconda and is
+installed from its GitHub release (see section 3).
 
 ---
 
-## 3. 外部工具版本（conda 渠道）
+## 3. External tool versions (conda channels)
 
-| 工具 | 安装命令 | 建议版本 | 用途 |
+| Tool | Install command | Recommended version | Use |
 | --- | --- | --- | --- |
-| MMseqs2 | `micromamba install -c bioconda mmseqs2` | >=13.45 | 序列远程同源检索、聚类 |
-| Foldseek | `micromamba install -c bioconda foldseek` | >=8.6 | 结构检索 |
-| HH-suite | `micromamba install -c bioconda hhsuite` | >=3.3.0 | hhblits/hhsearch 谱检索 |
-| P2Rank | `micromamba install -c bioconda p2rank` | >=2.4 | 结合口袋预测 |
+| MMseqs2 | `micromamba install -c bioconda mmseqs2` | >=13.45 | Remote homology search, clustering |
+| Foldseek | `micromamba install -c bioconda foldseek` | >=8.6 | Structure search |
+| HH-suite | `micromamba install -c bioconda hhsuite` | >=3.3.0 | hhblits/hhsearch profile search |
+| P2Rank | GitHub release `rdk/p2rank` (not on bioconda) | >=2.4 | Binding-pocket prediction |
 
-安装后自检：
+Run the self-check after installation:
 
 ```bash
 pufprobe doctor
 ```
 
-会列出各二进制是否在 PATH、torch/CUDA 状态。
+It reports whether each binary is on the PATH and the torch/CUDA status.
 
 ---
 
-## 4. PyTorch 与 ESM-2
+## 4. PyTorch and ESM-2
 
-### 4.1 GPU 版（按 CUDA 版本选 index-url）
+### 4.1 GPU build (choose the index URL for your CUDA version)
 
 ```bash
 # CUDA 12.1
@@ -110,9 +119,9 @@ pip install torch --index-url https://download.pytorch.org/whl/cu121
 pip install torch --index-url https://download.pytorch.org/whl/cu118
 ```
 
-查看本机 CUDA：`nvidia-smi` 右上角的 CUDA Version。
+Check the local CUDA version with `nvidia-smi` (CUDA Version in the top right).
 
-### 4.2 CPU 版备选（无 GPU 时）
+### 4.2 CPU build (when there is no GPU)
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cpu
@@ -126,160 +135,185 @@ pip install fair-esm
 
 ---
 
-## 5. ESM-2 权重
+## 5. ESM-2 weights
 
-- **首次自动下载**：`embed` 阶段第一次跑 ESM-2（默认 `esm2_t33_650M_UR50D`）时，fair-esm 会自动把权重下载到 `~/.cache/torch/hub/checkpoints/`（即 `$TORCH_HOME/hub/checkpoints/`）。
-- **离线服务器手动下载**：在有网机器上下载对应文件（如 `esm2_t33_650M_UR50D.pt`，约 2.5 GB），scp 到服务器后放到：
+- The weights are downloaded automatically on first use: the first time the
+  `embed` stage runs ESM-2 (default `esm2_t33_650M_UR50D`), fair-esm stores the
+  weights in `~/.cache/torch/hub/checkpoints/` (that is,
+  `$TORCH_HOME/hub/checkpoints/`).
+- For an offline server, download the file on a machine with internet (for
+  example `esm2_t33_650M_UR50D.pt`, about 2.5 GB), copy it over with scp, and
+  place it as follows:
 
   ```bash
   mkdir -p ~/.cache/torch/hub/checkpoints/
   cp esm2_t33_650M_UR50D.pt ~/.cache/torch/hub/checkpoints/
   ```
 
-- 或设置环境变量指向自定义目录：
+- Alternatively, point an environment variable to a custom directory:
 
   ```bash
   export TORCH_HOME=/data/models/torch
   mkdir -p $TORCH_HOME/hub/checkpoints
-  # 把权重放进 $TORCH_HOME/hub/checkpoints/
+  # Put the weights into $TORCH_HOME/hub/checkpoints/
   ```
 
-CPU 模式（`--cpu`）默认使用更小的 `esm2_t12_35M_UR50D`，权重约 130 MB。
+CPU mode (`--cpu`) uses the smaller `esm2_t12_35M_UR50D`, whose weights are about
+130 MB.
 
 ---
 
-## 6. 数据库下载与建库
+## 6. Database download and build
 
-建议统一放在 `/data/db/`，用 `--dbdir /data/db` 传给 `search`。
+Keep the databases in a single location, e.g. `/data/db/`, and pass it to
+`search` with `--dbdir /data/db`.
 
-### 6.1 UniRef90 / UniRef50（MMseqs 序列库）
+### 6.1 UniRef90 / UniRef50 (MMseqs sequence databases)
 
 ```bash
 mkdir -p /data/db/uniref90 && cd /data/db/uniref90
 wget https://ftp.uniprot.org/pub/databases/uniprot/current_release/uniref/uniref90/uniref90.fasta.gz
-mmseqs databases --tmpdir /data/tmp UniProtKB/Swiss-Prot swissprot /data/db/mmseqs
-# 自建 uniref90 搜索库：
+# Build a searchable database from the UniProtKB/Swiss-Prot name (MMseqs v18):
+mmseqs databases "UniProtKB/Swiss-Prot" /data/db/mmseqs/swissprot /data/tmp
+# Build the uniref90 search database yourself:
 mmseqs createdb uniref90.fasta.gz uniref90
 mmseqs createindex uniref90 /data/tmp -t 16
-# UniRef50 同理：把 uniref90 换成 uniref50
+# UniRef50 is the same: replace uniref90 with uniref50
 ```
 
-### 6.2 PDB / AlphaFold DB（Foldseek 结构库）
+### 6.2 PDB / AlphaFold DB (Foldseek structure databases)
 
 ```bash
-# 官方脚本一键下载（Foldseek >=8）
+# The official one-command download (Foldseek >=8)
 mkdir -p /data/db/foldseek && cd /data/db/foldseek
 foldseek databases Alphafold /data/db/foldseek/afdb /data/tmp
 foldseek databases PDB /data/db/foldseek/pdb /data/tmp
-# SwissProt 结构库（小，快速冒烟用）
+# SwissProt structure database (small, for a quick smoke test)
 foldseek databases SwissProt /data/db/foldseek/swissprot /data/tmp
 ```
 
-### 6.3 BFD / UniClust（hhblits 谱库）
+### 6.3 BFD / UniClust (hhblits profile databases)
 
 ```bash
 mkdir -p /data/db/hhblits && cd /data/db/hhblits
-# BFD（约 1.8 TB 解包后，磁盘紧张可用更小编制）
+# BFD (about 1.8 TB unpacked; use a smaller database when disk is tight)
 wget https://bfd.mmseqs.com/bfd_metaclust_clu_complete_id30_c90_final.sseadv.ffdata.tar.gz
-# UniClust30（推荐日常用，约 60 GB）
+# UniClust30 (recommended for routine use, about 60 GB)
 wget https://wwwuser.gwdg.de/~compbiol/uniclust/2024_06/UniRef30_2024_06_hhsuite.tar.gz
 tar xzf UniRef30_2024_06_hhsuite.tar.gz
 ```
 
-### 6.4 CARD（耐药库）
+### 6.4 CARD (antimicrobial resistance database)
 
 ```bash
 mkdir -p /data/db/card && cd /data/db/card
-# 从 CARD Download 页（https://card.mcmaster.ca/download）下载 latest.tar.bz2
-# 解出 aro_index.json / card_database.fasta；RGI 库：
+# Download latest.tar.bz2 from the CARD download page (https://card.mcmaster.ca/download)
+# It contains aro_index.json / card_database.fasta. For the RGI database:
 pip install rgi
-rgi card_annotation -i <latest.tar.bz2 解压后的 json>
+rgi card_annotation -i <json from the latest.tar.bz2>
 rgi load --card_json card_json --local
 ```
 
-### 6.5 VFDB（毒力因子库）
+### 6.5 VFDB (virulence factor database)
 
 ```bash
 mkdir -p /data/db/vfdb && cd /data/db/vfdb
-wget http://www.mgc.ac.cn/VFs/Down/VFDB_setA_pro.fas.gz   # 参考蛋白序列
+wget http://www.mgc.ac.cn/VFs/Down/VFDB_setA_pro.fas.gz   # reference protein sequences
 gunzip VFDB_setA_pro.fas.gz
 ```
 
-### 6.6 SPI（沙门氏菌致病岛参考，可选）
+### 6.6 SPI (Salmonella pathogenicity island reference, optional)
 
-从 SPI 数据库 / 课题组维护的 fasta 目录准备，context 阶段用 `--reference-fna` 传入对应基因组 fna 目录。
+Prepare this from the SPI database or a FASTA directory maintained by your
+group, and pass the corresponding genome FASTA directory to the context stage
+with `--reference-fna`.
 
 ---
 
-## 7. 磁盘与显存需求（约略估计）
+## 7. Disk and GPU memory requirements (rough estimates)
 
-| 资源 | 规模 | 说明 |
+| Resource | Size | Notes |
 | --- | --- | --- |
-| MMseqs UniRef90 库 | ~150 GB | 含索引 |
-| Foldseek AlphaFold DB | ~1.2 TB | 全库；冒烟只用 SwissProt ~2 GB |
-| hhblits UniRef30 库 | ~60 GB | BFD 需 ~1.8 TB |
+| MMseqs UniRef90 database | ~150 GB | including the index |
+| Foldseek AlphaFold DB | ~1.2 TB | full database; smoke uses only SwissProt (~2 GB) |
+| hhblits UniRef30 database | ~60 GB | BFD needs ~1.8 TB |
 | CARD + VFDB | ~2 GB | |
-| ESM-2 650M 权重 | ~2.5 GB | ESMFold 权重另需 ~3 GB |
-| 工作目录（数十株菌） | ~10–30 GB | 嵌入向量 + 中间结果 |
-| **显存：ESM-2 650M 推理** | ~8 GB | batch 8；OOM 就把 batch 调小 |
-| **显存：ESMFold** | ~16 GB 起步 | 1000 aa 以内蛋白建议 24 GB；否则自动跳过折叠 |
+| ESM-2 650M weights | ~2.5 GB | ESMFold weights need another ~3 GB |
+| Working directory (tens of genomes) | ~10–30 GB | embeddings plus intermediate files |
+| GPU memory: ESM-2 650M inference | ~8 GB | batch 8; reduce the batch on out-of-memory |
+| GPU memory: ESMFold | ~16 GB minimum | proteins under 1000 aa ideally use 24 GB; folding is otherwise skipped |
 
 ---
 
-## 8. 数十株沙门氏菌完整命令串
+## 8. Complete command sequence for dozens of Salmonella genomes
 
 ```bash
 WORKDIR=/data/runs/salmonella_$(date +%Y%m%d)
 DB=/data/db
 THREADS=32
 
-# 0) 准备：所有样本 GFF3/FAA 放在 samples/sampleA/ 下
+# 0) prepare: place all GFF3/FAA files under samples/sampleA/
 pufprobe --workdir $WORKDIR --threads $THREADS prepare \
     --input /data/genomes/salmonella/
 
-# 1) 嵌入 + 聚类（GPU）
+# 1) embed + cluster (GPU)
 pufprobe --workdir $WORKDIR --threads $THREADS embed
 
-# 2) 折叠（GPU；短序列自动跑 ESMFold）
+# 2) fold (GPU; short sequences are folded automatically with ESMFold)
 pufprobe --workdir $WORKDIR --threads $THREADS fold
 
-# 3) 检索
+# 3) search
 pufprobe --workdir $WORKDIR --threads $THREADS search \
     --channels mmseqs,foldseek,hhblits --dbdir $DB
 
-# 4) 上下文（邻域 / 系统发育谱 / 微共线性）
+# 4) context (neighborhood / phylogenetic profile / microsynteny)
 pufprobe --workdir $WORKDIR --threads $THREADS context \
     --card $DB/card --vfdb $DB/vfdb/VFDB_setA_pro.fas \
     --reference-fna /data/genomes/salmonella/
 
-# 5) 证据融合排序（可选 --weights fusion.joblib 用学习权重）
+# 5) evidence fusion and ranking (optional --weights fusion.joblib for learned weights)
 pufprobe --workdir $WORKDIR --threads $THREADS rank
 
-# 6) 报告
+# 6) report
 pufprobe --workdir $WORKDIR --threads $THREADS report --formats json,html,md
 
-# 7) 注释回填
+# 7) annotation backfill
 pufprobe --workdir $WORKDIR --threads $THREADS annotate
 ```
 
-预计耗时（32 核 + 单卡 A100 量级，约 30–50 株）：
+Estimated runtime (32 cores plus a single GPU on the order of an A100, roughly
+30–50 genomes):
 
-| 阶段 | 耗时 |
+| Stage | Time |
 | --- | --- |
 | prepare | <5 min |
-| embed（ESM-2 650M） | 2–4 h（GPU）；CPU 回退则 ~1–2 天 |
-| fold（ESMFold） | 每代表蛋白 ~1–3 min，视代表数而定 |
-| search（全库） | 3–8 h |
-| context / rank / report / annotate | <30 min 合计 |
+| embed (ESM-2 650M) | 2–4 h (GPU); CPU fallback ~1–2 days |
+| fold (ESMFold) | ~1–3 min per representative protein, depending on their number |
+| search (full databases) | 3–8 h |
+| context / rank / report / annotate | <30 min total |
 
-断点续跑：每个阶段写 `_DONE` 标记，中断后重跑同一命令自动跳过已完成阶段；强制重跑加 `--force`。
+Resuming: each stage writes a `_DONE` marker, so re-running the same command
+after an interruption skips completed stages; force a rerun with `--force`.
 
 ---
 
-## 9. 常见报错排查
+## 9. Common errors
 
-- **CUDA out of memory**：先把 embed 的 batch 调小（config 里 `embed.batch_size` 改成 2）；或对 >1000 aa 的蛋白 ESMFold 会自动跳过；实在不行用 `pufprobe --cpu ... embed --fallback-only` 走特征回退。
-- **mmseqs database path errors**：确认 `--dbdir` 指向的目录下用的是 `mmseqs createdb` 产出的库前缀（不是原始 fasta）；`pufprobe doctor` 里 `mmseqs available=True` 只是找到二进制，库路径要自己给对。
-- **foldseek 缺结构**：05_search 阶段日志提示 "no usable structures" —— 说明 04_fold 里该家族 pLDDT 低于阈值或被 skip，结构检索通道自动关闭，不影响序列通道。
-- **GFF 中 locus 与 FAA 对不上**：annotate 没有改到某条 CDS，多半是 GFF3 里 `locus_tag` 与 FAA header 首标记不一致；用 `grep` 对一下两个文件里的 id，prepare 阶段已尽量按 locus_tag / protein_id 关联。
-- **Windows 生成文件的 CRLF**：本流程产出的 GFF3/TSV/JSON 都以 LF 写出（`newline="\n"`），Windows 编辑器显示与否不影响 Linux 端解析；跨平台运行无需转换。
+- CUDA out of memory: reduce the embed batch size (`embed.batch_size` to 2 in the
+  config), or let ESMFold skip proteins longer than 1000 aa. As a last resort,
+  run `pufprobe --cpu ... embed --fallback-only` to use the feature fallback.
+- mmseqs database path errors: make sure the directory given to `--dbdir`
+  contains the database prefixes produced by `mmseqs createdb`, not the raw
+  FASTA. In `pufprobe doctor`, `mmseqs available=True` only locates the binary;
+  the database path must still be set correctly.
+- foldseek missing structures: a "no usable structures" message at the
+  05_search stage means the family pLDDT was below the threshold or it was
+  skipped at 04_fold. The structure search channel is turned off automatically;
+  the sequence channel is unaffected.
+- GFF loci do not match FAA: if a CDS is not changed by annotate, the
+  `locus_tag` in the GFF3 and the first identifier in the FAA header usually
+  differ. Compare the ids in the two files with `grep`; prepare already links
+  them by locus_tag / protein_id where possible.
+- CRLF from Windows: the GFF3/TSV/JSON produced by this workflow are written
+  with LF (`newline="\n"`). Whether a Windows editor displays them does not
+  affect parsing on Linux; no conversion is needed across platforms.
