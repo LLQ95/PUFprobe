@@ -11,6 +11,7 @@ than raising.
 from __future__ import annotations
 
 import math
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -97,11 +98,16 @@ def parse_convertalis(tsv_path: Path, report_evalue: float) -> Dict[str, List[Ev
                 continue
             if evalue > report_evalue:
                 continue
-            score = _evalue_score(evalue)
+            label = _description(target, theader)
+            if is_uninformative(label):
+                # The target has no function (e.g. a Swiss-Prot entry still
+                # labelled hypothetical); it cannot anchor a function term.
+                continue
+            score = _homology_score(pident_f, qcov_f, evalue)
             ev = Evidence(
                 channel=EvidenceChannel.REMOTE_HOMOLOGY,
                 target_id=target,
-                target_label=_description(target, theader),
+                target_label=label,
                 score=score,
                 evalue=evalue,
                 coverage=qcov_f,
@@ -119,6 +125,63 @@ def _evalue_score(evalue: float) -> float:
     if evalue <= 0.0:
         return 1.0
     return max(0.0, min(1.0, -math.log10(evalue) / 10.0))
+
+
+# Generic product phrases that carry no transferable function.
+_NO_FUNCTION_PHRASES = (
+    "hypothetical protein",
+    "uncharacterized protein",
+    "protein of unknown function",
+    "predicted protein",
+    "unknown protein",
+)
+_LEADING_QUALIFIERS = re.compile(r"^(putative|predicted|probable|conserved|possible)\s+", re.IGNORECASE)
+
+
+def is_uninformative(label: str) -> bool:
+    """True when a target description provides no transferable function.
+
+    A hit to a target that is itself labelled as a hypothetical or
+    uncharacterized protein (for example a Swiss-Prot entry with no function)
+    supports homology but not function, so it is not usable as a function
+    term.
+    """
+    text = (label or "").strip()
+    if not text:
+        return True
+    # Drop the organism suffix and any trailing qualifier tokens.
+    text = re.split(r"\s+OS=", text, maxsplit=1)[0]
+    text = text.lower()
+    for phrase in _NO_FUNCTION_PHRASES:
+        text = text.replace(phrase, " ")
+    text = _LEADING_QUALIFIERS.sub("", text)
+    # Remaining meaningful characters represent a specific name or function.
+    residual = re.sub(r"[^a-z0-9]+", "", text)
+    return len(residual) < 4
+
+
+def _identity_strength(pident: float) -> float:
+    """Conservative function-transfer strength from sequence identity.
+
+    Around 40% identity is a widely used safe-transfer boundary for molecular
+    function, while below roughly 20% transfer is unreliable; the linear
+    ramp in between reflects the uncertainty rather than a hard cutoff.
+    """
+    fraction = max(0.0, min(1.0, pident / 100.0))
+    return min(1.0, max(0.0, (fraction - 0.20) / 0.30))
+
+
+def _homology_score(pident: float, qcov: float, evalue: float) -> float:
+    """Function-transfer strength combining identity, coverage and significance.
+
+    The E-value states that the match is significant, identity controls how
+    safely function transfers, and coverage guards against short local
+    matches that only share a generic segment.
+    """
+    identity = _identity_strength(pident)
+    coverage = max(0.0, min(1.0, qcov))
+    significance = _evalue_score(evalue)
+    return min(1.0, max(0.0, identity * coverage * significance))
 
 
 def _description(target_id: str, header: str) -> str:

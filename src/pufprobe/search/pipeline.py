@@ -31,6 +31,7 @@ from pufprobe.logging_utils import get_logger
 from pufprobe.models import Evidence, families_from_dicts, to_dict
 from pufprobe.search import foldseek as foldseek_channel
 from pufprobe.search import hhblits as hhblits_channel
+from pufprobe.search import idmapping
 from pufprobe.search import mmseqs_search as mmseqs_channel
 from pufprobe.workdir import WorkDir
 
@@ -93,6 +94,17 @@ def run(
             merged.setdefault(key, []).extend(ev_list)
         logger.info("Channel '%s' contributed %d query(s) / %d hits.",
                     channel, len(evidence), sum(len(v) for v in evidence.values()))
+
+    # Optional term normalization: map Swiss-Prot accessions onto Pfam/EC/GO so
+    # that independent evidence groups can converge on the same functional term.
+    xref_path = dbdir / "swissprot_xref.json" if dbdir is not None else None
+    xref = idmapping.load_xref(xref_path)
+    if xref:
+        merged, n_added = idmapping.expand_evidence(merged, xref)
+        logger.info(
+            "Term normalization added %d ontology evidence entries (Pfam/EC/GO).",
+            n_added,
+        )
 
     payload = {key: [to_dict(ev) for ev in evs] for key, evs in merged.items()}
     write_json(out_dir / "search_evidence.json", payload)

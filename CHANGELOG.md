@@ -3,6 +3,38 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.4.0] - 2026-10-20
+
+Term normalization and stronger homology scoring. Independent evidence groups
+can only reinforce the same function when database-specific identifiers are
+mapped onto a shared ontology.
+
+### Added
+
+- A Swiss-Prot cross-reference index (`search/idmapping.py`) maps accessions to
+  Pfam, EC, and GO terms parsed from `uniprot_sprot.dat.gz`. The database
+  download script builds `swissprot_xref.json` (`server/build_xref.py`), and
+  the search stage supplements homology hits with ontology evidence while
+  keeping the original evidence channel. The hit still originates from
+  sequence homology, so cross-references from several accessions remain one
+  evidence group; a structurally derived hit mapped to the same Pfam later
+  supplies a genuinely independent group.
+- Gene Ontology terms are emitted as identifiers without true-path
+  propagation, because no ontology graph is loaded.
+
+### Changed
+
+- MMseqs2 homology scores now combine sequence identity, coverage, and E-value
+  rather than relying on E-value alone. Identity follows a conservative
+  transfer curve (around 40% identity is a safe-transfer boundary, below
+  roughly 20% transfer is unreliable), and coverage guards against short local
+  matches. This prevents weak, low-identity matches from reaching the same
+  score as a strong transfer, which also resolves cases where one protein was
+  assigned several unrelated functions.
+- Hits to targets that carry no function themselves (a Swiss-Prot entry still
+  labelled hypothetical or uncharacterized protein) are filtered out, because
+  they support homology but not a functional term.
+
 ## [0.3.0] - 2026-10-20
 
 Methodological change to evidence fusion. The previous linear weighted sum

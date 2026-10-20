@@ -22,6 +22,7 @@ def test_parse_convertalis_evidence() -> None:
     rows = [
         "sA@g1\tX1\t45.2\t1e-20\t1\t50\t1\t50\t0.9\t0.85\tsp|X1|NAME_ONE some protein desc",
         "sA@g1\tX2\t20.0\t1.0\t1\t10\t1\t10\t0.2\t0.2\tsp|X2|NAME_TWO bad evalue",
+        "sA@g1\tX3\t55.0\t1e-25\t1\t50\t1\t50\t0.9\t0.9\tsp|X3|NAME_THR hypothetical protein",
     ]
     tsv = Path("dummy.tsv")
     tsv.write_text("\n".join(rows) + "\n", encoding="utf-8")
@@ -31,7 +32,9 @@ def test_parse_convertalis_evidence() -> None:
         tsv.unlink()
     assert set(ev.keys()) == {"sA@g1"}
     hits = ev["sA@g1"]
-    assert len(hits) == 1  # second row filtered by e-value
+    # X2 filtered by e-value; X3 is a strong hit but the target itself has no
+    # function (hypothetical protein), so it cannot anchor a function term.
+    assert len(hits) == 1
     h = hits[0]
     assert h.channel.value == "remote_homology"
     assert h.target_id == "X1"
@@ -39,7 +42,17 @@ def test_parse_convertalis_evidence() -> None:
     assert h.evalue == pytest.approx(1e-20)
     assert h.coverage == pytest.approx(0.9)
     assert 0.0 <= h.score <= 1.0
-    assert h.score == pytest.approx(1.0)  # -log10(1e-20)=20 -> capped at 1
+    # identity strength 0.84 (pident 45.2) x coverage 0.9 x significance 1.0
+    assert h.score == pytest.approx(0.756, abs=1e-3)
+
+
+def test_uninformative_labels() -> None:
+    assert mmseqs_mod.is_uninformative("hypothetical protein") is True
+    assert mmseqs_mod.is_uninformative("Uncharacterized protein OS=Escherichia coli") is True
+    assert mmseqs_mod.is_uninformative("protein of unknown function") is True
+    # A specific name (even after a qualifier) still carries function info.
+    assert mmseqs_mod.is_uninformative("Putative protein IntB") is False
+    assert mmseqs_mod.is_uninformative("Tyrosine recombinase XerC") is False
 
 
 def test_description_extraction_from_header() -> None:

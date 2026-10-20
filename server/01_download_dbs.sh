@@ -4,6 +4,7 @@
 #
 #   TIER=A (default, small): run this first to smoke-test the pipeline
 #     - MMseqs2 Swiss-Prot sequence database   ($DBDIR/swissprot)
+#     - Swiss-Prot cross-reference index       ($DBDIR/swissprot_xref.json)
 #     - Foldseek PDB structure database        ($DBDIR/foldseek_db, optional)
 #     - CARD protein homolog FASTA             (context --card)
 #     - VFDB set A protein FASTA               (context --vfdb)
@@ -91,6 +92,22 @@ mmseqs_db() { # db_id slug prefix fasta_url
     fi
     [ -f "${prefix}.index" ] || die "MMseqs2 $db_id missing ${prefix}.index after build"
     "${CONDA_RUN[@]}" mmseqs linfo "$prefix" | head -3
+    done_step "$marker"
+}
+
+# Swiss-Prot cross-reference index for term normalization (Pfam/EC/GO).
+sprot_xref() {
+    local marker="sprot_xref"
+    local xref="$DBDIR/swissprot_xref.json"
+    if step_done "$marker" && [ -s "$xref" ]; then
+        log "Swiss-Prot cross-reference index already present at $xref"; return 0
+    fi
+    local dat_gz="$MMSEQS_TMP/uniprot_sprot.dat.gz"
+    download "${UNIPROT_BASE}/knowledgebase/complete/uniprot_sprot.dat.gz" "$dat_gz"
+    log "Building Swiss-Prot cross-reference index (Pfam/EC/GO) ..."
+    "${CONDA_RUN[@]}" python "$SCRIPT_DIR/build_xref.py" "$dat_gz" "$xref"
+    [ -s "$xref" ] || die "Swiss-Prot cross-reference index missing: $xref"
+    log "  index written: $xref"
     done_step "$marker"
 }
 
@@ -236,6 +253,7 @@ if [ "$TIER" = "A" ]; then
     df -h "$DB_ROOT" | tail -1
     mmseqs_db "UniProtKB/Swiss-Prot" swissprot "$DBDIR/swissprot" \
         "${UNIPROT_BASE}/knowledgebase/complete/uniprot_sprot.fasta.gz"
+    sprot_xref
     if [ "$SMOKE_FOLDSEEK" = "1" ]; then
         foldseek_db "PDB" "$DBDIR/foldseek_db" foldseek_smoke
     fi
