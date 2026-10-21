@@ -5,6 +5,7 @@
 #   TIER=A (default, small): run this first to smoke-test the pipeline
 #     - MMseqs2 Swiss-Prot sequence database   ($DBDIR/swissprot)
 #     - Swiss-Prot cross-reference index       ($DBDIR/swissprot_xref.json)
+#     - Pfam family name index                 ($DBDIR/pfam_names.json)
 #     - Foldseek PDB structure database        ($DBDIR/foldseek_db, optional)
 #     - CARD protein homolog FASTA             (context --card)
 #     - VFDB set A protein FASTA               (context --vfdb)
@@ -12,6 +13,7 @@
 #
 #   TIER=B (large, after the smoke run passes):
 #     - MMseqs2 UniRef90 (UniRef50 optional)   ($DBDIR/uniref90)
+#     - Pfam family name index                 ($DBDIR/pfam_names.json)
 #     - Foldseek AlphaFold/Proteome            ($DBDIR/foldseek_db)
 #     - hhblits UniRef30 hhsuite database      ($DBDIR/hhblits_db_*)
 #     - ESM-2 650M weights + ESMFold weights
@@ -203,6 +205,29 @@ sifts_pfam() {
     done_step "$marker"
 }
 
+# Pfam family name index (small, <1 MB compressed), used to display the
+# official Pfam family description rather than a PDB id or a distant homolog.
+pfam_names() {
+    local marker="pfam_names"
+    local out="$DBDIR/pfam_names.json"
+    if step_done "$marker" && [ -s "$out" ]; then
+        log "Pfam family name index already present at $out"; return 0
+    fi
+    local dat_gz="$MMSEQS_TMP/Pfam-A.hmm.dat.gz"
+    if [ -s "$dat_gz" ] && gzip -t "$dat_gz" 2>/dev/null; then
+        log "  existing Pfam metadata file verified: $dat_gz"
+    else
+        log "Downloading Pfam family metadata (Pfam-A.hmm.dat) ..."
+        download "https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.dat.gz" "$dat_gz"
+        gzip -t "$dat_gz" 2>/dev/null || die "Pfam metadata download is incomplete/corrupt: $dat_gz"
+    fi
+    log "Building Pfam family name index ..."
+    "${CONDA_RUN[@]}" python "$SCRIPT_DIR/build_pfam_names.py" "$dat_gz" "$out"
+    [ -s "$out" ] || die "Pfam family name index missing: $out"
+    log "  index written: $out"
+    done_step "$marker"
+}
+
 # ---------------------------------------------------------------------------
 # CARD / VFDB (context channel FASTA inputs)
 # ---------------------------------------------------------------------------
@@ -327,6 +352,7 @@ if [ "$TIER" = "A" ]; then
     mmseqs_db "UniProtKB/Swiss-Prot" swissprot "$DBDIR/swissprot" \
         "${UNIPROT_BASE}/knowledgebase/complete/uniprot_sprot.fasta.gz"
     sprot_xref
+    pfam_names
     if [ "$SMOKE_FOLDSEEK" = "1" ]; then
         if [ "${FOLDSEEK_PDB_SOURCE:-auto}" = "ebi" ]; then
             foldseek_pdb_ebi
@@ -353,6 +379,7 @@ elif [ "$TIER" = "B" ]; then
         mmseqs_db "UniRef50" uniref50 "$DBDIR/uniref50" \
             "${UNIPROT_BASE}/uniref/uniref50/uniref50.fasta.gz"
     fi
+    pfam_names
     foldseek_db "$FULL_FOLDSEEK_DB" "$DBDIR/foldseek_db" foldseek_full \
         || die "Foldseek full database failed; check the network or download it manually."
     uniref30

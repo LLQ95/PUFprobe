@@ -32,6 +32,7 @@ from typing import Any, Dict, List, Optional
 
 from pufprobe.io_utils import read_json, write_json
 from pufprobe.logging_utils import get_logger
+from pufprobe.ontology_names import load_pfam_names
 from pufprobe.models import (
     Family,
     Sample,
@@ -50,6 +51,7 @@ def run(
     workdir: WorkDir,
     config: Dict[str, Any],
     weights: Optional[Path] = None,
+    dbdir: Optional[Path] = None,
 ) -> None:
     records_path = workdir.path("prepare", "cds_records.json")
     samples_path = workdir.path("prepare", "samples.json")
@@ -78,13 +80,29 @@ def run(
         context_ev_path.name if context_ev_path.exists() else "missing",
     )
 
+    pfam_names_path = dbdir / "pfam_names.json" if dbdir is not None else None
+    pfam_names = load_pfam_names(pfam_names_path)
+    if pfam_names:
+        log.info(
+            "Pfam family name index loaded: %d families (%s)",
+            len(pfam_names), pfam_names_path,
+        )
+    else:
+        log.info(
+            "Pfam family name index not found (%s); Pfam terms use evidence labels.",
+            pfam_names_path,
+        )
+
     model, model_note = load_weights_model(weights)
     if model is None:
         method = config["rank"].get("fusion_method", "group_noisy_or")
         fusion_note = f"fusion: {method} over independent evidence groups (rule-based, no learned model)"
     else:
         fusion_note = model_note
-    predictions = fuse_proteins(records, evidence_map, config, weights_model=model)
+    predictions = fuse_proteins(
+        records, evidence_map, config,
+        weights_model=model, pfam_names=pfam_names,
+    )
 
     # Calibration: no held-out calibration set is produced by the upstream
     # stages, so the default identity calibrator is used.

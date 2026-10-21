@@ -147,7 +147,7 @@ else
     log "No search databases present; skipping search stage (run 01_download_dbs.sh)."
 fi
 run_stage context ${CONTEXT_OPTS[@]+"${CONTEXT_OPTS[@]}"}
-run_stage rank
+run_stage rank --dbdir "$DBDIR"
 run_stage report --formats json,html,md
 run_stage annotate --min-confidence "$MIN_CONF"
 

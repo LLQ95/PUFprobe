@@ -148,15 +148,16 @@ def context(obj: Context, card: Optional[Path], vfdb: Optional[Path], reference_
 
 @cli.command()
 @click.option("--weights", type=click.Path(exists=True, path_type=Path), help="Trained fusion model weights; absent uses rule weights.")
+@click.option("--dbdir", type=click.Path(exists=True, file_okay=False, path_type=Path), help="Directory holding the Pfam family name index.")
 @click.option("--force", is_flag=True, default=False)
 @click.pass_obj
-def rank(obj: Context, weights: Optional[Path], force: bool) -> None:
+def rank(obj: Context, weights: Optional[Path], dbdir: Optional[Path], force: bool) -> None:
     """Fuse evidence, calibrate confidence and rank wet-lab priorities."""
     from pufprobe.rank.pipeline import run
 
     if _resume_guard(obj.workdir, "rank", force):
         return
-    run(obj.workdir, obj.config, weights=weights)
+    run(obj.workdir, obj.config, weights=weights, dbdir=dbdir)
 
 
 @cli.command()

@@ -108,7 +108,7 @@ def test_classify_foldseek_is_structure():
 # ---------------------------------------------------------------------------
 # fusion rules
 # ---------------------------------------------------------------------------
-def _fuse(evidence: dict, cfg: dict = None):
+def _fuse(evidence: dict, cfg: dict = None, pfam_names: dict = None):
     """Run fuse_proteins on a small set of records and return {key: terms}."""
     from pufprobe.rank.fuse import fuse_proteins
 
@@ -133,7 +133,12 @@ def _fuse(evidence: dict, cfg: dict = None):
             )
             for r in rows
         ]
-    preds = fuse_proteins(records, ev_map, cfg if cfg is not None else _custom_config())
+    preds = fuse_proteins(
+        records,
+        ev_map,
+        cfg if cfg is not None else _custom_config(),
+        pfam_names=pfam_names,
+    )
     return {p.key: p.terms for p in preds}
 
 
@@ -294,6 +299,40 @@ def test_pfam_with_only_pdb_label_falls_back_to_accession():
     term = terms["sA@g1"][0]
     assert term.term_type == "Pfam"
     assert term.term_name == "PF13855"
+
+
+def test_pfam_official_description_overrides_homolog_and_pdb():
+    # With the Pfam name index the official family description names the
+    # term, regardless of the PDB template or a distant eukaryotic homolog.
+    pfam_names = {
+        "PF13855": {"id": "LRR_8", "name": "Leucine rich repeat", "type": "Repeat"},
+    }
+    terms = _fuse(
+        {
+            "sA@g1": [
+                _ev("foldseek", "PF13855", "6jbu_B", 0.9),
+                _ev("remote_homology", "PF13855", "Protein lap4 OS=Drosophila", 0.6),
+            ],
+        },
+        pfam_names=pfam_names,
+    )
+    term = terms["sA@g1"][0]
+    assert term.term_id == "PF13855"
+    assert term.term_name == "Leucine rich repeat"
+
+
+def test_pfam_description_falls_back_to_family_id():
+    # A record without a description still resolves to its short identifier.
+    pfam_names = {"PF00005": {"id": "ABC_tran", "type": "Domain"}}
+    terms = _fuse(
+        {
+            "sA@g1": [
+                _ev("foldseek", "PF00005", "9iqf_B", 0.9),
+            ],
+        },
+        pfam_names=pfam_names,
+    )
+    assert terms["sA@g1"][0].term_name == "ABC_tran"
 
 
 def test_unmapped_structure_term_keeps_pdb_label():
