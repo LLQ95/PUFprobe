@@ -424,6 +424,59 @@ unpacking UniRef30, make sure the six
 
 ---
 
+## Step 6b: Fusion evidence-channel databases (STRING / GO / M-CSA / UniRef30)
+
+The `12_download_evidence_dbs.sh` script fetches the auxiliary databases that
+back the fusion channels not covered by `01_download_dbs.sh`: the STRING
+database-corroboration channel, the GO ontology for true-path propagation, the
+M-CSA catalytic-site templates, and the large UniRef30 HHblits build. These
+artifacts live under `EVIDENCE_DB_ROOT` (default
+`/db/student/metagenome/evidence_dbs`, on the data volume) and can be fetched
+in parallel with the eggNOG 7 download.
+
+| Module | Artifacts | Approx. size | Channel |
+| --- | --- | --- | --- |
+| `string` | COG-level links, species list/tree, per-species networks | about 100 MB with the default panel | DATABASE corroboration |
+| `go` | `go-basic.obo` + goatools | about 32 MB | GO true-path / BPO |
+| `mcsa` | entries + residues JSON | about 7 MB | pocket catalytic templates |
+| `hhsuite` | UniRef30 2023_02 hhsuite build | about 66 GB compressed, about 200 GB unpacked | HHblits remote homology |
+| `small` | string + go + mcsa, no large build | about 140 MB | quick first pass |
+
+Run the small set first (it finishes in minutes), then the large UniRef30
+build in the background:
+
+```bash
+cd /data/liushiwei/PUFprobe
+bash server/12_download_evidence_dbs.sh small
+nohup bash server/12_download_evidence_dbs.sh hhsuite \
+  > server/logs/evidence_hhsuite.log 2>&1 &
+```
+
+The hhsuite module unpacks UniRef30 on the data volume and creates the same
+`dbs/dbdir/hhblits_db_*` symlinks as the tier B step, so either route satisfies
+the HHblits channel.
+
+Notes:
+
+- STRING builds networks for strain-level reference proteomes, not for
+  species/genus taxids. The defaults use verified v12.5 identifiers such as
+  `99287` for S. Typhimurium and `511145` for E. coli K12. Override the panel
+  with `STRING_TAXIDS="..."`, or point `STRING_TAXIDS_FILE` at a newline-separated
+  list extracted from the 07 proteomes index. The global 133–210 GB network
+  dumps are intentionally not downloaded; the COG-level links and per-species
+  files are sufficient for corroboration.
+- Set `STRING_WITH_ALIASES=1` to also fetch the global `protein.aliases` table
+  (about 3.2 GB) for accession to STRING-id mapping.
+- `go-basic.obo` is all that is needed for true-path propagation; GO labels
+  come from eggNOG 7 and the Swiss-Prot cross-references. Set `WITH_GOA=1` to
+  additionally fetch the GOA reference-proteome GAF (about 23 GB) for BPO
+  model training.
+- Every step is idempotent and resumable; existing files are skipped and
+  partial downloads resume. To refresh a database, delete its file or the
+  marker under `$EVIDENCE_DB_ROOT/.markers/` and re-run the module.
+
+---
+
 ## Step 7: Annotate and run the full cohort
 
 First annotate all strains (remove the `MAX_SAMPLES` limit):

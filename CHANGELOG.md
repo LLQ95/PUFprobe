@@ -3,6 +3,23 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- A server script `server/12_download_evidence_dbs.sh` that fetches the
+  databases backing the fusion evidence channels. It provides STRING v12.5
+  COG-level links and per-species interaction networks, the GO `go-basic.obo`
+  ontology with the goatools dependency for true-path propagation, the M-CSA
+  catalytic-site entries and residues, and the UniRef30 HHblits build. The
+  script is idempotent and resumable, downloads to the data volume
+  (`EVIDENCE_DB_ROOT`), and reuses the `hhblits_db_*` symlink convention from
+  `01_download_dbs.sh`.
+- Configuration variables for the evidence databases (`EVIDENCE_DB_ROOT`,
+  `STRING_VER`, `STRING_TAXIDS`, `STRING_TAXIDS_FILE`, `STRING_WITH_ALIASES`,
+  `WITH_GOA`, `EVIDENCE_UNIREF30_RELEASE`). The default STRING panel lists
+  verified strain-level reference proteomes for PUFprobe's target pathogens.
+
 ## [0.6.0] - 2026-10-21
 
 Pfam terms now display their official family descriptions. A compact name

@@ -144,3 +144,30 @@ CS_BENCHMARK_SAMPLE="${CS_BENCHMARK_SAMPLE:-20000}"         # Swiss-Prot hold-ou
 CS_BENCHMARK_PAGES="${CS_BENCHMARK_PAGES:-120}"             # UniProt pages scanned to reach the quota
 # CS_NO_STRUCTURES=1 limits 11 to the sequence channel (no AlphaFold/Foldseek)
 
+# ---------------------------------------------------------------------------
+# Evidence-channel databases (12_download_evidence_dbs.sh)
+# ---------------------------------------------------------------------------
+# Auxiliary fusion-channel databases live on the data volume next to the
+# eggNOG 7 databases: the repo disk on /data is too small for the ~200 GB
+# unpacked UniRef30 hhsuite build.
+EVIDENCE_DB_ROOT="${EVIDENCE_DB_ROOT:-/db/student/metagenome/evidence_dbs}"
+# STRING version for the DATABASE-corroboration channel.
+STRING_VER="${STRING_VER:-12.5}"
+# Space-separated NCBI taxids for per-species STRING networks. Override for
+# your panel, or set STRING_TAXIDS_FILE to a newline-separated list (e.g.
+# extracted from the 07 proteomes index).
+# NOTE: STRING builds networks for specific strain-level reference proteomes,
+# not species/genus-level taxids (e.g. use 99287 S. Typhimurium, not 28901
+# S. enterica; use 511145 E. coli K12, not 562). The defaults below are all
+# verified present in v12.5 and cover PUFprobe's target pathogens.
+STRING_TAXIDS="${STRING_TAXIDS:-99287 511145 386585 272620 584 35703 300267 169963 214092 243277 192222 226185 93061 208964 400668}"
+STRING_TAXIDS_FILE="${STRING_TAXIDS_FILE:-}"
+# 1 also downloads the global protein.aliases table (~3.2 GB) for accession
+# to STRING-id mapping; the COG-level links and per-species files work without it.
+STRING_WITH_ALIASES="${STRING_WITH_ALIASES:-0}"
+# 1 also downloads the GOA reference-proteome GAF (~23 GB gz) for BPO model
+# training; go-basic.obo alone is sufficient for true-path propagation.
+WITH_GOA="${WITH_GOA:-0}"
+# UniRef30 hhsuite release used by the HHblits remote-homology channel.
+EVIDENCE_UNIREF30_RELEASE="${EVIDENCE_UNIREF30_RELEASE:-2023_02}"
+
