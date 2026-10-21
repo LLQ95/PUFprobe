@@ -85,6 +85,32 @@ try_download() { # url out
     fi
 }
 
+# Large artifact: use aria2c multi-connection segmented download when it is
+# available (the GWDG/GWDG-style hosts throttle a single connection but allow
+# ranged requests), and fall back to the resumable curl download otherwise.
+fetch_parallel() { # url out
+    local url="$1" out="$2"
+    if [ -s "$out" ]; then log "  exists: $out"; return 0; fi
+    log "  downloading $url"
+    mkdir -p "$(dirname "$out")"
+    if command -v aria2c >/dev/null 2>&1; then
+        (cd "$(dirname "$out")" && aria2c -x 16 -s 16 -k 10M -c \
+            --max-tries=0 --retry-wait=5 --connect-timeout=60 \
+            --lowest-speed-limit=10K --file-allocation=none \
+            -o "$(basename "$out")" "$url") \
+            || { rm -f "$out" "$out.aria2"; die "download failed: $url (re-run to resume)"; }
+    else
+        log "  aria2c not found; using single-connection curl (install aria2 for speed)"
+        if command -v curl >/dev/null 2>&1; then
+            curl -fL -C - --retry 5 --retry-delay 5 --connect-timeout 60 -o "$out" "$url" \
+                || { rm -f "$out"; die "download failed: $url (re-run to resume)"; }
+        else
+            wget -c --tries 5 --timeout=120 --progress=dot:giga -O "$out" "$url" \
+                || { rm -f "$out"; die "download failed: $url (re-run to resume)"; }
+        fi
+    fi
+}
+
 # ---------------------------------------------------------------------------
 # STRING
 # ---------------------------------------------------------------------------
@@ -178,7 +204,7 @@ hhsuite_db() {
     log "free disk at $EVID (need ~250 GB for the tar plus the extracted build):"
     df -h "$EVID" | tail -1
     local tar="$dir/UniRef30_${rel}_hhsuite.tar.gz"
-    download "$HH_BASE/${rel}/UniRef30_${rel}_hhsuite.tar.gz" "$tar"
+    fetch_parallel "$HH_BASE/${rel}/UniRef30_${rel}_hhsuite.tar.gz" "$tar"
     log "extracting UniRef30 (tens of GB) ..."
     tar xzf "$tar" -C "$dir"
     local stem
