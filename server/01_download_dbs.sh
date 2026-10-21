@@ -306,7 +306,7 @@ uniref30() {
     local rel="$UNIREF30_RELEASE"
     local dir="$DB_ROOT/hhblits/UniRef30_$rel"
     local marker="hhblits_uniref30_$rel"
-    if step_done "$marker" && [ -f "$DBDIR/hhblits_db_hhm.ffdata" ]; then
+    if step_done "$marker" && [ -f "$DBDIR/hhblits_db_hhm.ffdata" ] && [ -f "$DBDIR/hhblits_db_cs219.ffdata" ]; then
         log "hhblits UniRef30 already present"; return 0
     fi
     mkdir -p "$dir"
@@ -317,10 +317,12 @@ uniref30() {
     local stem
     stem=$(find "$dir" -name "*_hhm.ffdata" -print -quit | sed 's/_hhm.ffdata$//')
     [ -n "$stem" ] || die "UniRef30 hhsuite extraction did not contain *_hhm.ffdata"
-    for suffix in hhm.ffdata hhm.ffindex a3m.ffdata a3m.ffindex cs.ffdata cs.ffindex; do
-        [ -e "${stem}_${suffix}" ] && ln -sf "${stem}_${suffix}" "$DBDIR/hhblits_db_${suffix}"
+    # HH-suite3 ships column-state files as cs219 (legacy HH-suite2 used "cs").
+    for suffix in hhm.ffdata hhm.ffindex a3m.ffdata a3m.ffindex cs219.ffdata cs219.ffindex; do
+        [ -e "${stem}_${suffix}" ] || die "UniRef30 extraction missing ${stem}_${suffix}"
+        ln -sfn "${stem}_${suffix}" "$DBDIR/hhblits_db_${suffix}"
+        [ -e "$DBDIR/hhblits_db_${suffix}" ] || die "hhblits_db_${suffix} link is dangling"
     done
-    [ -f "$DBDIR/hhblits_db_hhm.ffdata" ] || die "hhblits_db_hhm.ffdata linking failed"
     done_step "$marker"
 }
 
@@ -335,8 +337,17 @@ pdb70_smoke() {
     local stem
     stem=$(find "$dir" -maxdepth 1 -name "pdb70*_hhm.ffdata" -print -quit | sed 's/_hhm.ffdata$//')
     [ -n "$stem" ] || die "PDB70 extraction did not contain *_hhm.ffdata"
-    for suffix in hhm.ffdata hhm.ffindex a3m.ffdata a3m.ffindex cs.ffdata cs.ffindex; do
-        [ -e "${stem}_${suffix}" ] && ln -sf "${stem}_${suffix}" "$DBDIR/hhblits_db_${suffix}"
+    for suffix in hhm.ffdata hhm.ffindex a3m.ffdata a3m.ffindex; do
+        [ -e "${stem}_${suffix}" ] || die "PDB70 extraction missing ${stem}_${suffix}"
+        ln -sfn "${stem}_${suffix}" "$DBDIR/hhblits_db_${suffix}"
+    done
+    # Column-state naming varies across HH-suite releases: cs219 (v3) or cs (v2).
+    local csname=""
+    if   [ -e "${stem}_cs219.ffdata" ]; then csname="cs219"
+    elif [ -e "${stem}_cs.ffdata" ];    then csname="cs"
+    else die "PDB70 extraction missing column-state db (cs219 or cs)"; fi
+    for ext in ffdata ffindex; do
+        ln -sfn "${stem}_${csname}.${ext}" "$DBDIR/hhblits_db_${csname}.${ext}"
     done
     done_step "$marker"
 }

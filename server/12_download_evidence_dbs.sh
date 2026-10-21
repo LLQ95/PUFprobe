@@ -217,7 +217,7 @@ hhsuite_db() {
     local dir="$EVID/hhsuite/UniRef30_$rel"
     local marker="hhblits_uniref30_$rel"
     mkdir -p "$dir"
-    if step_done "$marker" && [ -f "$DBDIR/hhblits_db_hhm.ffdata" ]; then
+    if step_done "$marker" && [ -f "$DBDIR/hhblits_db_hhm.ffdata" ] && [ -f "$DBDIR/hhblits_db_cs219.ffdata" ]; then
         log "UniRef30 already linked into $DBDIR"; return 0
     fi
     log "free disk at $EVID (need ~250 GB for the tar plus the extracted build):"
@@ -233,11 +233,13 @@ hhsuite_db() {
     stem="$(find "$dir" -name "*_hhm.ffdata" -print -quit | sed 's/_hhm.ffdata$//')"
     [ -n "$stem" ] || die "UniRef30 extraction did not contain *_hhm.ffdata"
     mkdir -p "$DBDIR"
+    # HH-suite3 ships column-state files as cs219 (legacy HH-suite2 used "cs").
     local suffix
-    for suffix in hhm.ffdata hhm.ffindex a3m.ffdata a3m.ffindex cs.ffdata cs.ffindex; do
-        [ -e "${stem}_${suffix}" ] && ln -sf "${stem}_${suffix}" "$DBDIR/hhblits_db_${suffix}"
+    for suffix in hhm.ffdata hhm.ffindex a3m.ffdata a3m.ffindex cs219.ffdata cs219.ffindex; do
+        [ -e "${stem}_${suffix}" ] || die "UniRef30 extraction missing ${stem}_${suffix}"
+        ln -sfn "${stem}_${suffix}" "$DBDIR/hhblits_db_${suffix}"
+        [ -e "$DBDIR/hhblits_db_${suffix}" ] || die "hhblits_db_${suffix} link is dangling"
     done
-    [ -f "$DBDIR/hhblits_db_hhm.ffdata" ] || die "hhblits_db_hhm.ffdata linking failed"
     rm -f "$tar"
     log "UniRef30 linked: $DBDIR/hhblits_db_* -> $(basename "$stem")_*"
     done_step "$marker"
