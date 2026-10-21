@@ -3,6 +3,30 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.6.0] - 2026-10-21
+
+Pfam terms now display their official family descriptions. A compact name
+index built from the Pfam-A.hmm.dat metadata replaces PDB template ids and
+distant eukaryotic homolog names with the family's own description.
+
+### Added
+
+- A Pfam family name index (`pfam_names.json`), built offline by a companion
+  server script (`server/build_pfam_names.py`) that parses the
+  `Pfam-A.hmm.dat` metadata and stores each accession with its short
+  identifier, official description, and entry type. The trailing version
+  number is stripped from accessions.
+- A `--dbdir` option on the rank command, which loads the Pfam name index
+  and resolves Pfam terms to their official descriptions.
+
+### Changed
+
+- Pfam term names are taken from the official family description rather
+  than the strongest evidence label, so a bacterial protein is no longer
+  named after a PDB chain or a distant eukaryotic homolog. The index
+  carries no scoring weight, and the predicted terms and confidence values
+  are unchanged.
+
 ## [0.5.0] - 2026-10-21
 
 Structure-based inference is now an active, gated evidence channel. The
