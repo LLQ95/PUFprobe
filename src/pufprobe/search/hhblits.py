@@ -24,10 +24,18 @@ logger = get_logger(__name__)
 INSTALL_HINT = "See docs/server_setup.md for building an HH-suite3 database (e.g. BFD/MGnify)."
 _DB_NAME = "hhblits_db"
 
-# hhr result-table row: leading rank, target name, Prob%, E-value, P-value, Score...
+# hhr result-table row. The "No Hit" table is fixed-column, but the target
+# name is space-padded and often runs long (UniRef30), leaving a single space
+# before Prob. The numeric fields are anchored from the fixed tail (SS, Cols,
+# query/template spans, template length) so a long name cannot shift
+# prob/evalue/score. The table header carries one leading space; parse_hhr
+# strips it before matching.
 _HIT_ROW = re.compile(
-    r"^\s*(?P<rank>\d+)\s+(?P<name>\S.*?)\s{2,}(?P<prob>\d+(?:\.\d+)?)\s+"
-    r"(?P<evalue>\S+)\s+(?P<pvalue>\S+)\s+(?P<score>[\d.]+)"
+    r"^\s*(?P<rank>\d+)\s+(?P<name>.*?)\s+"
+    r"(?P<prob>\d{1,3}\.\d+)\s+"
+    r"(?P<evalue>\S+)\s+(?P<pvalue>\S+)\s+"
+    r"(?P<score>[\d.]+)\s+(?P<ss>[\d.]+)\s+(?P<cols>\d+)\s+"
+    r"(?P<qrange>\d+-\d+)\s+(?P<trange>\d+-\d+)\s+\((?P<tlen>\d+)\)\s*$"
 )
 
 
@@ -102,10 +110,11 @@ def parse_hhr(hhr_path: Path) -> List[Tuple[str, float, float, float]]:
     in_table = False
     with hhr_path.open("r", encoding="utf-8", errors="replace") as handle:
         for line in handle:
-            if line.startswith("No Hit"):
+            stripped = line.lstrip()
+            if stripped.startswith("No Hit"):
                 in_table = True
                 continue
-            if in_table and line.startswith(">"):
+            if in_table and stripped.startswith(">"):
                 break
             if not in_table:
                 continue

@@ -188,11 +188,19 @@ def test_load_sifts_pdb_chain_pfam(tmp_path: Path) -> None:
 
 def test_parse_hhr_table() -> None:
     hhr = [
-        "Query:      q",
-        "Match_columns 50 No_seqs_used 1",
-        "No Hit                             Prob E-value P-value  Score    SS Cols Query HMM  Template HMM",
-        "  1 sp|P1|name_one                95.0 1.2E-45  1.2E-45  450.0  0.00   45   1-45     1-45",
-        "  2 sp|P2|name_two                 12.0 5.0E+01  5.0E+01   50.0  0.00   10   1-10     1-10",
+        "Query         ubiq_smoke",
+        "Match_columns 76",
+        "Searched_HMMs 10124",
+        "",
+        # hhblits 3.3.0 emits one leading space before the table header.
+        " No Hit                             Prob E-value P-value  Score    SS Cols Query HMM  Template HMM",
+        # Long UniRef30 names fill the 30-char name column, leaving a single
+        # space before Prob; the parser must not shift prob/evalue/score.
+        "  1 UniRef100_A0A453NER7 Ubiquitin 100.0 1.3E-88   2E-93  415.0   0.0   76    1-76      1-76  (244)",
+        " 14 UniRef100_A0A3Q1J0K9 Ribosomal 100.0   5E-54 1.2E-59  302.4   0.0   76    1-76     17-92  (120)",
+        " 22 UniRef100_A0A0K8R2I3 Putative  100.0 6.2E-52 1.5E-57  304.2   0.0   76    1-76     18-93  (170)",
+        "100 UniRef100_A0A453SXU8 Ubiquitin 100.0 5.4E-52 1.2E-57  299.6   0.0   76    1-76      1-76  (145)",
+        "363 UniRef100_A0A8C8DY11 Ubiquitin 100.0 7.7E-42 1.4E-47  231.0   0.0   66    1-66      1-66  (81)",
         ">sp|P3|not_a_table_row",
     ]
     p = Path("x.hhr")
@@ -201,9 +209,21 @@ def test_parse_hhr_table() -> None:
         hits = hhblits_mod.parse_hhr(p)
     finally:
         p.unlink()
-    assert [h[0] for h in hits] == ["sp|P1|name_one", "sp|P2|name_two"]
-    assert hits[0][1] == pytest.approx(95.0)
-    assert hits[0][2] == pytest.approx(1.2e-45)
+    assert [h[0] for h in hits] == [
+        "UniRef100_A0A453NER7 Ubiquitin",
+        "UniRef100_A0A3Q1J0K9 Ribosomal",
+        "UniRef100_A0A0K8R2I3 Putative",
+        "UniRef100_A0A453SXU8 Ubiquitin",
+        "UniRef100_A0A8C8DY11 Ubiquitin",
+    ]
+    # Long-name rows must keep Prob at 100.0, not the shifted Score column.
+    assert hits[0][1] == pytest.approx(100.0)
+    assert hits[0][2] == pytest.approx(1.3e-88)
+    assert hits[0][3] == pytest.approx(415.0)
+    # Mantissa without a decimal point (5E-54) still parses.
+    assert hits[1][2] == pytest.approx(5e-54)
+    assert hits[4][1] == pytest.approx(100.0)
+    assert hits[4][3] == pytest.approx(231.0)
 
 
 def _minimal_workdir(tmp_path: Path) -> WorkDir:
