@@ -63,7 +63,7 @@ fi
     --threads "$THREADS" \
     --embed-model "$CS_EMBED_MODEL" \
     --embed-batch "$CS_EMBED_BATCH" \
-    "${EMBED_FLAG[@]}"
+    ${EMBED_FLAG[@]+"${EMBED_FLAG[@]}"}
 
 log "Family clustering written to $CLUSTER_DIR"
 log "  families.tsv              one row per family"

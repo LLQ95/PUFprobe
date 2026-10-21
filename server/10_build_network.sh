@@ -57,13 +57,13 @@ fi
 log "Building family network (k=$CS_NETWORK_K, resolution=$CS_LEIDEN_RESOLUTION)"
 "$PY" "$SCRIPT_DIR/cross_species_network.py" \
     --cluster-dir "$CLUSTER_DIR" \
-    "${STRUCTURE_FLAG[@]}" \
+    ${STRUCTURE_FLAG[@]+"${STRUCTURE_FLAG[@]}"} \
     --output "$NETWORK_DIR" \
     --k "$CS_NETWORK_K" \
     --resolution "$CS_LEIDEN_RESOLUTION" \
     --seed "$CS_LEIDEN_SEED" \
     --core-min-size "$CS_CORE_MIN_SIZE" \
-    "${PROSTT5_FLAG[@]}"
+    ${PROSTT5_FLAG[@]+"${PROSTT5_FLAG[@]}"}
 
 if [ -z "$RSCRIPT" ]; then
     log "Rscript not found; tables written but figures skipped."

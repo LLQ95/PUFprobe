@@ -82,9 +82,9 @@ log "Fetching structures for representatives from $REPS"
     --threads "$THREADS" \
     --min-tm "$CS_FOLDSEEK_TM" \
     --max-evalue "$CS_FOLDSEEK_STRUCT_EVALUE" \
-    "${SIFTS_FLAG[@]}" \
-    "${FALLBACK_FLAG[@]}" \
-    "${MAX_FLAG[@]}"
+    ${SIFTS_FLAG[@]+"${SIFTS_FLAG[@]}"} \
+    ${FALLBACK_FLAG[@]+"${FALLBACK_FLAG[@]}"} \
+    ${MAX_FLAG[@]+"${MAX_FLAG[@]}"}
 
 log "Structures written to $CS_ALPHAFOLD_DIR"
 log "Structure search outputs written to $STRUCTURE_OUT"

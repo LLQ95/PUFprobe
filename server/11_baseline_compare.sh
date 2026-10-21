@@ -69,7 +69,7 @@ log "Hold-out benchmark: sample=$CS_BENCHMARK_SAMPLE threads=$THREADS workers=$C
     --max-pages "$CS_BENCHMARK_PAGES" \
     --threads "$THREADS" \
     --workers "$CS_WORKERS" \
-    "${STRUCTURE_FLAG[@]}"
+    ${STRUCTURE_FLAG[@]+"${STRUCTURE_FLAG[@]}"}
 
 if [ -z "$RSCRIPT" ]; then
     log "Rscript not found; tables written but figures skipped."

@@ -1,0 +1,32 @@
+# Pinned Python dependencies for the tested PUFprobe environment.
+# Lock date: 2026-10-21 (validated on biflab-1, NVIDIA RTX A5000).
+#
+# Recreate the environment:
+#   conda create -y -n pufprobe python=3.11
+#   conda activate pufprobe
+#   pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r requirements-lock.txt
+#
+# External binaries (MMseqs2, Foldseek, HH-suite) are pinned separately in
+# docs/software_manifest.md and installed through conda/bioconda.
+
+# --- core runtime ---
+click==8.5.0
+numpy==2.4.6
+biopython==1.88
+tqdm==4.70.1
+
+# --- sequence / structure inference (ESM-2, ESMFold) ---
+einops==0.8.2
+fair-esm==2.0.0
+# torch is the CUDA 12.1 build: torch==2.5.1+cu121 (install from pytorch index)
+torch==2.5.1
+
+# --- clustering, network and benchmark ---
+scikit-learn==1.9.1
+pandas==3.0.6
+igraph==1.0.0
+leidenalg==0.12.0
+
+# --- test suite ---
+pytest==9.1.1
