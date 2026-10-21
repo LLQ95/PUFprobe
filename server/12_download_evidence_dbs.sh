@@ -53,7 +53,11 @@ STRING_BASE="https://stringdb-downloads.org/download"
 GO_OBO_URL="http://purl.obolibrary.org/obo/go/go-basic.obo"
 GOA_BASE="https://ftp.ebi.ac.uk/pub/databases/GO/goa/UNIPROT"
 MCSA_BASE="https://www.ebi.ac.uk/thornton-srv/m-csa"
-HH_BASE="https://wwwuser.gwdg.de/~compbiol/uniclust"
+# UniRef30 hhsuite build. The Steinegger lab S3 bucket (served through
+# opendata.mmseqs.org) is fast and multi-connection friendly; GWDG throttles
+# per-IP and repeatedly drops connections, so it is the last-resort mirror.
+HH_S3_BASE="https://opendata.mmseqs.org/uniclust"
+HH_GWDG_BASE="https://wwwuser.gwdg.de/~compbiol/uniclust"
 
 # Required artifact: abort on failure after removing the partial file.
 download() { # url out
@@ -85,30 +89,45 @@ try_download() { # url out
     fi
 }
 
-# Large artifact: use aria2c multi-connection segmented download when it is
-# available (the GWDG/GWDG-style hosts throttle a single connection but allow
-# ranged requests), and fall back to the resumable curl download otherwise.
-fetch_parallel() { # url out
-    local url="$1" out="$2"
+# Large artifact: try each mirror in order. Prefer aria2c multi-connection
+# segmented download; fall back to resumable single-connection curl/wget.
+# Usage: fetch_parallel <out> <url> [mirror_url ...]
+fetch_parallel() {
+    local out="$1"; shift
+    local urls=("$@")
+    [ "${#urls[@]}" -ge 1 ] || die "fetch_parallel: no URL given for $out"
     if [ -s "$out" ]; then log "  exists: $out"; return 0; fi
-    log "  downloading $url"
     mkdir -p "$(dirname "$out")"
-    if command -v aria2c >/dev/null 2>&1; then
-        (cd "$(dirname "$out")" && aria2c -x 16 -s 16 -k 10M -c \
-            --max-tries=0 --retry-wait=5 --connect-timeout=60 \
-            --lowest-speed-limit=10K --file-allocation=none \
-            -o "$(basename "$out")" "$url") \
-            || { rm -f "$out" "$out.aria2"; die "download failed: $url (re-run to resume)"; }
-    else
-        log "  aria2c not found; using single-connection curl (install aria2 for speed)"
-        if command -v curl >/dev/null 2>&1; then
-            curl -fL -C - --retry 5 --retry-delay 5 --connect-timeout 60 -o "$out" "$url" \
-                || { rm -f "$out"; die "download failed: $url (re-run to resume)"; }
+    local url
+    for url in "${urls[@]}"; do
+        log "  downloading $url"
+        if command -v aria2c >/dev/null 2>&1; then
+            # Do NOT set --lowest-speed-limit: when a host throttles every
+            # connection below the threshold, aria2 aborts them all and fails
+            # the whole job. --timeout only drops stalled (no-data) connections;
+            # --max-tries=0 keeps reconnecting and -c resumes from the .aria2
+            # control file when the job is restarted.
+            if (cd "$(dirname "$out")" && aria2c -x 16 -s 16 -k 10M -c \
+                --max-tries=0 --retry-wait=5 --connect-timeout=60 \
+                --timeout=60 --file-allocation=none \
+                -o "$(basename "$out")" "$url") && [ -s "$out" ]; then
+                return 0
+            fi
+            log "  mirror failed: $url (trying next mirror)"
         else
-            wget -c --tries 5 --timeout=120 --progress=dot:giga -O "$out" "$url" \
-                || { rm -f "$out"; die "download failed: $url (re-run to resume)"; }
+            log "  aria2c not found; using single-connection curl (install aria2 for speed)"
+            if command -v curl >/dev/null 2>&1; then
+                curl -fL -C - --retry 5 --retry-delay 5 --connect-timeout 60 -o "$out" "$url" \
+                    && [ -s "$out" ] && return 0
+            elif command -v wget >/dev/null 2>&1; then
+                wget -c --tries 5 --timeout=120 --progress=dot:giga -O "$out" "$url" \
+                    && [ -s "$out" ] && return 0
+            fi
+            log "  mirror failed: $url (trying next mirror)"
         fi
-    fi
+    done
+    rm -f "$out" "$out.aria2"
+    die "download failed from every mirror: $out"
 }
 
 # ---------------------------------------------------------------------------
@@ -204,7 +223,10 @@ hhsuite_db() {
     log "free disk at $EVID (need ~250 GB for the tar plus the extracted build):"
     df -h "$EVID" | tail -1
     local tar="$dir/UniRef30_${rel}_hhsuite.tar.gz"
-    fetch_parallel "$HH_BASE/${rel}/UniRef30_${rel}_hhsuite.tar.gz" "$tar"
+    # S3 places the file directly under /uniclust/; GWDG nests it under /<rel>/.
+    fetch_parallel "$tar" \
+        "$HH_S3_BASE/UniRef30_${rel}_hhsuite.tar.gz" \
+        "$HH_GWDG_BASE/${rel}/UniRef30_${rel}_hhsuite.tar.gz"
     log "extracting UniRef30 (tens of GB) ..."
     tar xzf "$tar" -C "$dir"
     local stem
