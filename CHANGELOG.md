@@ -3,6 +3,46 @@
 All notable changes to PUFprobe are documented in this file. The format follows
 Keep a Changelog, and the project adheres to semantic versioning.
 
+## [0.5.0] - 2026-10-21
+
+Structure-based inference is now an active, gated evidence channel. The
+pipeline folds family representatives, searches their structures, and
+resolves structural hits against Pfam, so a sequence hit and a structural
+hit can converge on the same family and provide two independent witnesses.
+
+### Added
+
+- GPU structure modelling with ESMFold for family representatives. A family
+  is marked folded when its median pLDDT is at least 70, and low-confidence
+  models are retained but not searched. Representatives longer than 1000
+  residues are skipped, and precomputed models are accepted.
+- Foldseek structure search on folded representatives, with PDB-chain
+  targets mapped to Pfam accessions through the SIFTS chain-level summary.
+  Structural and sequence evidence therefore converge on the same Pfam
+  terms.
+
+### Changed
+
+- Foldseek hits are scored by alignment TM-score, query coverage and E-value
+  significance, mirroring the sequence-homology score, instead of Foldseek's
+  reported probability, which saturates near 1.0 even for short partial
+  alignments. Hits below a TM-score of 0.5 or above an E-value of 1e-2 are
+  rejected; coverage is not hard-filtered, because domain-level matches can
+  legitimately cover part of a multi-domain template.
+- Each direct evidence group must clear a minimum strength gate
+  (`rank.group_min_strength`, default 0.40) to count as an independent
+  witness. A strong sequence profile paired with a weak structure, or a
+  strong structure paired with a twilight-zone sequence, is held at the
+  single-group level, while weaker groups still contribute to the fused
+  score.
+- Genomic context is classified as an indirect group. It can raise
+  confidence through the noisy-OR combination, but it does not count as an
+  independent witness for the two-group requirement.
+- Structure-backed Pfam terms display a protein name rather than a bare PDB
+  identifier. The display name is taken from the best non-PDB protein hit,
+  falling back to the Pfam accession, while structure-only terms keep the
+  PDB name.
+
 ## [0.4.0] - 2026-10-20
 
 Term normalization and stronger homology scoring. Independent evidence groups
