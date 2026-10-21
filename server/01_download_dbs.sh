@@ -57,9 +57,19 @@ download() { # url out
     local url="$1" out="$2"
     if [ -s "$out" ]; then log "  exists: $out"; return 0; fi
     log "  downloading $url"
-    wget -c --tries "$WGET_TRIES" --timeout=120 --show-progress --progress=dot:giga -O "$out" "$url" \
-        || die "download failed: $url
+    mkdir -p "$(dirname "$out")"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fL -C - --retry "$WGET_TRIES" --retry-delay 3 --connect-timeout 60 \
+            -o "$out" "$url" \
+            || die "download failed: $url
 Re-run this script (resumes) or download on a networked machine and scp to $out."
+    else
+        # --show-progress and --progress are mutually exclusive; use the dot
+        # style because output is captured into a log.
+        wget -c --tries "$WGET_TRIES" --timeout=120 --progress=dot:giga -O "$out" "$url" \
+            || die "download failed: $url
+Re-run this script (resumes) or download on a networked machine and scp to $out."
+    fi
 }
 
 # ---------------------------------------------------------------------------
