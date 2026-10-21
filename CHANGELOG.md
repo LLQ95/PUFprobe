@@ -20,6 +20,16 @@ Keep a Changelog, and the project adheres to semantic versioning.
   `WITH_GOA`, `EVIDENCE_UNIREF30_RELEASE`). The default STRING panel lists
   verified strain-level reference proteomes for PUFprobe's target pathogens.
 
+### Changed
+
+- The large UniRef30 HHblits archive is now fetched from the Steinegger lab
+  S3 mirror (`opendata.mmseqs.org/uniclust`) first, with the throttled GWDG
+  host as a fallback, and is downloaded with `aria2c` multi-connection
+  segments. The harmful `--lowest-speed-limit` option was removed: on a host
+  that throttles every connection it aborts the whole download. The fetcher
+  now uses `--timeout` to drop only fully stalled connections and retries each
+  mirror in order.
+
 ## [0.6.0] - 2026-10-21
 
 Pfam terms now display their official family descriptions. A compact name

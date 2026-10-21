@@ -456,6 +456,18 @@ The hhsuite module unpacks UniRef30 on the data volume and creates the same
 `dbs/dbdir/hhblits_db_*` symlinks as the tier B step, so either route satisfies
 the HHblits channel.
 
+The UniRef30 archive is fetched from the Steinegger lab S3 bucket
+(`opendata.mmseqs.org/uniclust`, a fast multi-connection mirror; the
+byte-identical GWDG host is the last-resort fallback). The module uses
+`aria2c` with 16 ranged connections when it is installed (`conda install -c
+conda-forge aria2`); it deliberately does not set `--lowest-speed-limit`,
+because on a host that throttles every connection below the threshold aria2
+aborts them all and fails the whole job. It uses `--timeout` to drop only
+fully stalled connections and resumes from the `.aria2` control file on
+restart. On a machine where even the S3 mirror is slow, download there and
+`rsync -avP` the archive back to the same directory before re-running the
+module.
+
 Notes:
 
 - STRING builds networks for strain-level reference proteomes, not for
