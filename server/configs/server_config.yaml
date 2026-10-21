@@ -104,3 +104,43 @@ FORCE_FALLBACK="${FORCE_FALLBACK:-1}"
 # skipped automatically without a GPU)
 FOLD_ON_CPU="${FOLD_ON_CPU:-0}"
 WETLAB_TOP_N="${WETLAB_TOP_N:-30}"
+
+# ---------------------------------------------------------------------------
+# Cross-species expansion (07_* ... 11_*)
+# ---------------------------------------------------------------------------
+# Root of the cross-species hypothetical-protein dataset and all downstream
+# families, embeddings, structures and networks.
+CROSS_SPECIES_ROOT="${CROSS_SPECIES_ROOT:-$DB_ROOT/cross_species}"
+# 08_embed_cluster.sh — MMseqs2 linear-time family clustering (linclust)
+CS_MIN_SEQ_ID="${CS_MIN_SEQ_ID:-0.30}"          # family-level identity floor (linclust floor ~0.27)
+CS_COVERAGE="${CS_COVERAGE:-0.80}"              # bidirectional alignment coverage
+CS_COV_MODE="${CS_COV_MODE:-0}"                 # 0 = bidirectional coverage
+CS_CLUSTER_MODE="${CS_CLUSTER_MODE:-1}"         # 1 = connected component (greedy set-cover)
+# ESM-2 embeddings are computed only for family representatives, keeping the
+# GPU cost proportional to the number of families rather than proteins.
+CS_EMBED_MODEL="${CS_EMBED_MODEL:-esm2_t33_650M_UR50D}"
+CS_EMBED_BATCH="${CS_EMBED_BATCH:-16}"
+CS_EMBED_REPRESENTATIVES="${CS_EMBED_REPRESENTATIVES:-1}"   # 1 embed representatives, 0 skip
+# 09_fetch_alphafold.sh — precomputed structures for family representatives
+CS_ALPHAFOLD_DIR="${CS_ALPHAFOLD_DIR:-$CROSS_SPECIES_ROOT/structures}"
+CS_FOLDSEEK_STRUCT_EVALUE="${CS_FOLDSEEK_STRUCT_EVALUE:-10}"
+CS_FOLDSEEK_TM="${CS_FOLDSEEK_TM:-0.50}"
+CS_ESMFOLD_FALLBACK="${CS_ESMFOLD_FALLBACK:-1}"   # 1 fold AF-missing reps with ESMFold, 0 leave them
+CS_WORKERS="${CS_WORKERS:-8}"                     # parallel AlphaFold downloads
+CS_MAX_REPS="${CS_MAX_REPS:-0}"                   # >0 limits representatives (smoke test)
+# Optional ProstT5 structure-aware embeddings (needs transformers + GPU); these
+# add a database-free structural representation and are kept separate from the
+# ESM-2 embeddings so the network stage can combine them.
+CS_PROSTT5="${CS_PROSTT5:-0}"
+CS_PROSTT5_MODEL="${CS_PROSTT5_MODEL:-Rostlab/ProstT5_fp16}"
+CS_PROSTT5_BATCH="${CS_PROSTT5_BATCH:-8}"
+# 10_build_network.sh — family-level kNN graph and community detection
+CS_NETWORK_K="${CS_NETWORK_K:-12}"              # kNN edges from representative embeddings
+CS_LEIDEN_RESOLUTION="${CS_LEIDEN_RESOLUTION:-1.0}"
+CS_LEIDEN_SEED="${CS_LEIDEN_SEED:-42}"
+CS_CORE_MIN_SIZE="${CS_CORE_MIN_SIZE:-2}"          # detail plot keeps families with >= this many members
+# 11_baseline_compare.sh — held-out annotation gain benchmark
+CS_BENCHMARK_SAMPLE="${CS_BENCHMARK_SAMPLE:-20000}"         # Swiss-Prot hold-out sample size
+CS_BENCHMARK_PAGES="${CS_BENCHMARK_PAGES:-120}"             # UniProt pages scanned to reach the quota
+# CS_NO_STRUCTURES=1 limits 11 to the sequence channel (no AlphaFold/Foldseek)
+

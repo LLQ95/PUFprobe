@@ -69,7 +69,19 @@ else:
     print(f"__version__ already {version}")
 PY
 
-echo "================ 2. upgrade Foldseek / MMseqs2 ================"
+echo "================ 2. install network analysis packages ================"
+# igraph and leidenalg build the family-level network; pandas and tqdm support
+# the data-processing and reporting scripts.
+"$ENV_PREFIX/bin/pip" install --upgrade igraph leidenalg pandas tqdm
+"$PY" - <<'PY'
+import importlib.util
+for name in ("igraph", "leidenalg", "pandas", "tqdm"):
+    if importlib.util.find_spec(name) is None:
+        raise SystemExit(f"missing required package: {name}")
+print("network analysis packages available")
+PY
+
+echo "================ 3. upgrade Foldseek / MMseqs2 ================"
 log "versions before:"
 "$ENV_PREFIX/bin/foldseek" version 2>/dev/null | head -1 | sed 's/^/  foldseek: /' || true
 "$ENV_PREFIX/bin/mmseqs" version 2>/dev/null | head -1 | sed 's/^/  mmseqs:  /' || true
@@ -82,7 +94,7 @@ log "versions after:"
 "$ENV_PREFIX/bin/foldseek" version 2>/dev/null | head -1 | sed 's/^/  foldseek: /' || true
 "$ENV_PREFIX/bin/mmseqs" version 2>/dev/null | head -1 | sed 's/^/  mmseqs:  /' || true
 
-echo "================ 3. refresh databases ================"
+echo "================ 4. refresh databases ================"
 # SIFTS and CARD are small; remove them (and their markers) so the download
 # script rebuilds them. The Foldseek PDB database is refreshed only when
 # requested because the archive is about 1.8 GB.
@@ -101,7 +113,7 @@ log "running download script (rebuilds only the missing pieces)"
 TIER=A SMOKE_FOLDSEEK="$UPDATE_FOLDSEEK_DB" \
     bash "$REPO_ROOT/server/01_download_dbs.sh"
 
-echo "================ 4. rerun affected stages ================"
+echo "================ 5. rerun affected stages ================"
 # New search databases invalidate the downstream results.
 log "clearing search/context/rank/report/annotate outputs"
 rm -rf "$WD/05_search" "$WD/06_context" "$WD/07_rank" \
@@ -113,7 +125,7 @@ TIER=A FORCE_FALLBACK=0 bash "$REPO_ROOT/server/03_run_pufprobe.sh"
 log "rerunning summary"
 bash "$REPO_ROOT/server/04_summary.sh"
 
-echo "================ 5. verify ================"
+echo "================ 6. verify ================"
 "$PY" - "$DBDIR" "$REPO_ROOT" "$ENV_PREFIX" <<'PY'
 import csv
 import os

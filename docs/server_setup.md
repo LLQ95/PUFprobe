@@ -317,3 +317,81 @@ after an interruption skips completed stages; force a rerun with `--force`.
 - CRLF from Windows: the GFF3/TSV/JSON produced by this workflow are written
   with LF (`newline="\n"`). Whether a Windows editor displays them does not
   affect parsing on Linux; no conversion is needed across platforms.
+
+---
+
+## 10. Cross-species expansion (stages 06–11)
+
+The pilot pipeline annotates hypothetical proteins within one annotated
+collection. The cross-species stages broaden the analysis to bacterial
+reference proteomes, cluster the hypothetical proteins into global families,
+attach precomputed structures, build a family network, and quantify the gain
+over a held-out set. The stages live under `server/` and share
+`server/configs/server_config.yaml`. All of them are idempotent and resumable,
+so they can be restarted after an interruption.
+
+Run the software and database update once first. It installs the network
+dependencies (`igraph`, `leidenalg`, `pandas`, `tqdm`), updates Foldseek and
+MMseqs2, and refreshes the SIFTS and Foldseek structure databases.
+
+```bash
+bash server/06_update_software.sh
+```
+
+The stages are then run individually or through the one-stop driver.
+
+```bash
+# full run (recommended after the databases are ready)
+bash server/run_cross_species.sh
+
+# small end-to-end smoke run
+SMOKE=1 bash server/run_cross_species.sh
+```
+
+| Stage | Script | What it does | Key outputs |
+| --- | --- | --- | --- |
+| 07 | `07_fetch_reference_proteomes.sh` | samples bacterial reference proteomes across phyla and collects their hypothetical proteins | `cross_species/per_proteome/`, `all_hypothetical_proteins.tsv` |
+| 08 | `08_embed_cluster.sh` | MMseqs2 linclust families and ESM-2 embeddings for family representatives | `clusters/families.tsv`, `representatives.faa`, `representative_embeddings.npz` |
+| 09 | `09_fetch_alphafold.sh` | AlphaFold models, Foldseek search with SIFTS Pfam mapping, optional ESMFold fallback and ProstT5 | `structures/`, `structure_search/structure_hits.tsv` |
+| 10 | `10_build_network.sh` | cosine kNN graph of representatives, Leiden communities, R figures | `network/nodes.tsv`, `communities.tsv`, PDF/PNG/SVG figures |
+| 11 | `11_baseline_compare.sh` | Swiss-Prot hold-out test of sequence, structure and fusion channels | `benchmark/holdout_results.tsv`, `metrics_by_identity.tsv`, figures |
+
+### 10.1 Sampling scope and storage
+
+The default sample (`MAX_PROTEOMES=200`, at least two proteomes per phylum) is
+deliberately small: only hypothetical proteins are retained, only family
+representatives are embedded, and AlphaFold models are fetched on demand, so
+the disk footprint stays modest. Raise the limits for a production run through
+the environment or the config file.
+
+```bash
+MAX_PROTEOMES=1000 MIN_PER_PHYLUM=5 bash server/07_fetch_reference_proteomes.sh
+CS_BENCHMARK_SAMPLE=50000 bash server/11_baseline_compare.sh
+```
+
+The structure channel can be switched off in stage 11 with
+`CS_NO_STRUCTURES=1`. ProstT5 embeddings are opt-in with `CS_PROSTT5=1`, which
+adds a database-free structural representation to the network stage.
+
+### 10.2 Network figures
+
+Stage 10 renders a community-level network (node size proportional to the
+number of proteins, edges showing links between communities), a ranked
+community-size bar chart that identifies the dominant cluster, and a core
+family network. Figures are written as PDF, PNG and SVG; the SVG files are
+editable in Adobe Illustrator. R (>=4.6) with `ggplot2`, `dplyr`, `readr`,
+`ggrepel` and `patchwork` is required. When Rscript is absent the tables are
+still written and the figures can be rendered later with
+`Rscript server/plot_network.R <network_dir>`.
+
+### 10.3 Hold-out benchmark
+
+Stage 11 treats curated Swiss-Prot proteins as unknown. The self-hit is removed
+from the sequence results, and each prediction is scored against the hidden
+Pfam labels. Sequence, structure, their union and the two-channel consensus
+are reported. The identity breakdown is the central result: the structure
+channel is expected to recover annotations in the low-identity and no-hit
+ranges where sequence homology carries no information. The per-protein table
+also exposes the ground truth, so external annotators can be scored with the
+same routine when their outputs are available; PUFprobe does not install or run
+those third-party tools automatically.
