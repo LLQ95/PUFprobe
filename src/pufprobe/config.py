@@ -79,6 +79,18 @@ DEFAULTS: Dict[str, Any] = {
         "eggnog_data_dir": "",
         "eggnog_search_mode": "diamond",
         "eggnog_emapper_path": "",
+        # pLM nearest-neighbour channel. plm_ref_dir is the annotated reference
+        # library built by server/build_plm_reference.py; empty means
+        # <dbdir>/plm_ref. Neighbour weights ramp linearly from plm_cos_floor;
+        # only neighbours at or above plm_cos_min vote. A term needs at least
+        # plm_min_voters supporting neighbours and a noisy-OR score at or above
+        # plm_min_term_score.
+        "plm_ref_dir": "",
+        "plm_top_k": 20,
+        "plm_cos_floor": 0.50,
+        "plm_cos_min": 0.50,
+        "plm_min_term_score": 0.50,
+        "plm_min_voters": 1,
         "report_evalue": 1e-3,
     },
     # context

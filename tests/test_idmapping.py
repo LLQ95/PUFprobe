@@ -68,6 +68,36 @@ def test_expand_evidence() -> None:
     assert ontology.details["source_accession"] == "P0ACF0"
 
 
+DAT_WITH_SQ = """ID   ABC_ECOLI              STANDARD;      PRT; 20 AA.
+AC   P12345;
+DE   RecName: Full=Test enzyme;
+DE            EC=1.1.1.1;
+DR   Pfam; PF00001; Some Domain; 1.
+DR   GO; GO:0000001; F:something; IEA:UniProtKB.
+SQ   SEQUENCE   20 AA;  2000 MW;  AAAA CRC64;
+     MKVIKFLAAL AAAAAAAAAM
+//
+ID   NOSEQ_HUMAN            STANDARD;      PRT; 5 AA.
+AC   Q99999;
+DE   RecName: Full=No annotation;
+//
+"""
+
+
+def test_iter_sprot_records_extracts_sequence_and_terms() -> None:
+    records = list(idmapping.iter_sprot_records(io.StringIO(DAT_WITH_SQ)))
+    # The entry without any Pfam/EC/GO annotation is skipped.
+    assert len(records) == 1
+    record = records[0]
+    assert record["accession"] == "P12345"
+    # Sequence lines are space-grouped; spaces must be removed.
+    assert record["sequence"] == "MKVIKFLAALAAAAAAAAAM"
+    assert len(record["sequence"]) == 20
+    assert record["terms"]["Pfam"] == ["PF00001"]
+    assert record["terms"]["EC"] == ["1.1.1.1"]
+    assert record["terms"]["GO"] == ["GO:0000001"]
+
+
 def test_expand_evidence_no_xref() -> None:
     hit = Evidence(
         channel=EvidenceChannel.REMOTE_HOMOLOGY,

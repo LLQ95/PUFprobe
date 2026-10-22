@@ -7,6 +7,19 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ### Added
 
+- A protein-language-model nearest-neighbour evidence channel
+  (`search --channels plm_neighbor`). Representative ESM-2 embeddings are
+  compared against an annotated reference library (`<dbdir>/plm_ref`); the
+  cosine top-k neighbours transfer their GO, EC and Pfam terms, weighted by a
+  linear ramp of cosine and aggregated per term with a noisy-OR, so agreement
+  across several neighbours accumulates. The channel verifies that the query
+  and reference embeddings share the same checkpoint and pooling and disables
+  itself on a mismatch. The channel belongs to the independent "sequence"
+  evidence group. `server/build_plm_reference.py` builds the library from
+  `uniprot_sprot.dat[.gz]` (or a FASTA plus cross-reference index), loads the
+  ESM checkpoint once, and writes resumable shards; the embed stage was
+  refactored into shared `load_esm_model` / `embed_items` functions so query
+  and reference pooling cannot diverge.
 - Gene Ontology true-path propagation in the rank stage. A dependency-free OBO
   reader (`pufprobe.ontology_graph`) loads `go-basic.obo` (plain or gzip),
   folds alt ids onto primary terms, excludes obsolete terms, and extends each

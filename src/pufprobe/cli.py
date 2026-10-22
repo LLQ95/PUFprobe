@@ -117,7 +117,7 @@ def fold(obj: Context, engine: Optional[str], precomputed: Optional[Path], force
 
 
 @cli.command()
-@click.option("--channels", default=None, help="Comma-separated channels: mmseqs,foldseek,hhblits,eggnog.")
+@click.option("--channels", default=None, help="Comma-separated channels: mmseqs,foldseek,hhblits,eggnog,plm_neighbor.")
 @click.option("--dbdir", type=click.Path(exists=True, file_okay=False, path_type=Path), help="Directory holding versioned search databases.")
 @click.option("--force", is_flag=True, default=False)
 @click.pass_obj

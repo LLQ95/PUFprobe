@@ -24,7 +24,7 @@ import gzip
 import json
 import re
 from pathlib import Path
-from typing import Dict, IO, List, Optional, Tuple
+from typing import Any, Dict, IO, List, Optional, Tuple
 
 from pufprobe.logging_utils import get_logger
 from pufprobe.models import Evidence, EvidenceChannel
@@ -105,6 +105,81 @@ def parse_sprot_dat(handle: IO[str]) -> Dict[str, Dict[str, List[str]]]:
 
     flush()
     return xref
+
+
+def iter_sprot_records(handle: IO[str]):
+    """Yield annotated records from a Swiss-Prot flat text stream.
+
+    Each yielded dict carries the primary ``accession``, the amino-acid
+    ``sequence`` and a ``terms`` mapping with any non-empty ``Pfam``, ``EC``
+    and ``GO`` lists. Entries without ontology terms or without a sequence are
+    skipped. Used by the pLM reference-library builder, which needs the
+    sequence and the annotations of the same entry in one place.
+    """
+    accessions: List[str] = []
+    pfam: List[str] = []
+    ec: List[str] = []
+    go: List[str] = []
+    in_sq = False
+    seq_parts: List[str] = []
+
+    def flush() -> Optional[Dict[str, Any]]:
+        if not accessions:
+            return None
+        terms: Dict[str, List[str]] = {}
+        if pfam:
+            terms["Pfam"] = sorted(set(pfam))
+        if ec:
+            terms["EC"] = sorted(set(ec))
+        if go:
+            terms["GO"] = sorted(set(go))
+        sequence = "".join(seq_parts)
+        if not terms or not sequence:
+            return None
+        return {"accession": accessions[0], "sequence": sequence, "terms": terms}
+
+    def reset() -> None:
+        nonlocal accessions, pfam, ec, go, seq_parts, in_sq
+        accessions, pfam, ec, go, seq_parts = [], [], [], [], []
+        in_sq = False
+
+    for raw_line in handle:
+        line = raw_line.rstrip("\n")
+
+        if line.startswith("SQ"):
+            in_sq = True
+            continue
+        if line.strip() == "//":
+            record = flush()
+            if record is not None:
+                yield record
+            reset()
+            continue
+        if in_sq:
+            # Sequence lines are space-grouped amino acids; drop spaces.
+            seq_parts.append(line.replace(" ", "").replace("\t", ""))
+            continue
+        if line.startswith("AC"):
+            payload = line[5:].lstrip()
+            for token in payload.split(";"):
+                token = token.strip()
+                if token:
+                    accessions.append(token)
+        elif line.startswith(_DR_PREFIX + "Pfam;"):
+            accession = line[len(_DR_PREFIX + "Pfam;"):].split(";", 1)[0].strip()
+            if accession:
+                pfam.append(accession)
+        elif line.startswith(_DR_PREFIX + "GO;"):
+            accession = line[len(_DR_PREFIX + "GO;"):].split(";", 1)[0].strip()
+            if accession:
+                go.append(accession)
+        elif line.startswith(_DE_PREFIX):
+            for match in _EC_DE_RE.finditer(line):
+                ec.append(match.group(1))
+
+    record = flush()
+    if record is not None:
+        yield record
 
 
 def build_xref(dat_path: Path, out_path: Path) -> Dict[str, Dict[str, List[str]]]:

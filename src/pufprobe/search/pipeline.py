@@ -35,6 +35,7 @@ from pufprobe.search import foldseek as foldseek_channel
 from pufprobe.search import hhblits as hhblits_channel
 from pufprobe.search import idmapping
 from pufprobe.search import mmseqs_search as mmseqs_channel
+from pufprobe.search import plm_neighbor as plm_channel
 from pufprobe.workdir import WorkDir
 
 logger = get_logger(__name__)
@@ -105,6 +106,21 @@ def run(
                 search_mode=str(search_cfg.get("eggnog_search_mode", "diamond")),
                 pfam_names=pfam_names,
                 emapper_path=search_cfg.get("eggnog_emapper_path") or None,
+            )
+        elif channel == "plm_neighbor":
+            ref_dir_cfg = str(search_cfg.get("plm_ref_dir", "") or "").strip()
+            evidence, _ = plm_channel.run_plm_neighbor_search(
+                reps_faa,
+                workdir.path("embed", "embeddings.npz"),
+                dbdir,
+                out_dir,
+                ref_dir=Path(ref_dir_cfg) if ref_dir_cfg else None,
+                query_manifest_path=workdir.path("embed", "manifest.json"),
+                top_k=int(search_cfg.get("plm_top_k", 20)),
+                cos_floor=float(search_cfg.get("plm_cos_floor", 0.5)),
+                cos_min=float(search_cfg.get("plm_cos_min", 0.5)),
+                min_term_score=float(search_cfg.get("plm_min_term_score", 0.5)),
+                min_voters=int(search_cfg.get("plm_min_voters", 1)),
             )
         elif channel == "tmvec":
             info = externals.tmvec()
