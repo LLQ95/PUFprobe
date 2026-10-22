@@ -7,18 +7,40 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ### Added
 
+- Gene Ontology true-path propagation in the rank stage. A dependency-free OBO
+  reader (`pufprobe.ontology_graph`) loads `go-basic.obo` (plain or gzip),
+  folds alt ids onto primary terms, excludes obsolete terms, and extends each
+  GO evidence entry to its full `is_a` and `part_of` ancestor closure. The
+  `regulates` relation is deliberately not traversed. Propagated evidence
+  keeps the same channel and evidence group as the direct hit (it is never
+  counted as an independent witness), and only the strongest support is kept
+  for a given ancestor and channel. The ontology is located from
+  `rank.go_obo_path` or by looking for `go-basic.obo` in the rank `--dbdir`;
+  when absent the rank stage logs that GO terms are kept at their annotated
+  level. `calibration.json` records the propagation state
+  (`go_true_path_propagation`, `n_go_propagated`).
+- An eggNOG-mapper evidence channel (`search --channels eggnog`). It runs the
+  externally installed emapper in its own conda environment against an
+  eggNOG v7 database and parses the emapper 3.0 annotation format (OG/COG,
+  GO, EC and Pfam fields), feeding the database evidence group.
 - A server script `server/12_download_evidence_dbs.sh` that fetches the
   databases backing the fusion evidence channels. It provides STRING v12.5
   COG-level links and per-species interaction networks, the GO `go-basic.obo`
-  ontology with the goatools dependency for true-path propagation, the M-CSA
-  catalytic-site entries and residues, and the UniRef30 HHblits build. The
-  script is idempotent and resumable, downloads to the data volume
-  (`EVIDENCE_DB_ROOT`), and reuses the `hhblits_db_*` symlink convention from
-  `01_download_dbs.sh`.
+  ontology for true-path propagation, the M-CSA catalytic-site entries and
+  residues, and the UniRef30 HHblits build. The script is idempotent and
+  resumable, downloads to the data volume (`EVIDENCE_DB_ROOT`), and reuses the
+  `hhblits_db_*` symlink convention from `01_download_dbs.sh`.
 - Configuration variables for the evidence databases (`EVIDENCE_DB_ROOT`,
   `STRING_VER`, `STRING_TAXIDS`, `STRING_TAXIDS_FILE`, `STRING_WITH_ALIASES`,
   `WITH_GOA`, `EVIDENCE_UNIREF30_RELEASE`). The default STRING panel lists
   verified strain-level reference proteomes for PUFprobe's target pathogens.
+
+### Removed
+
+- The `goatools` pip install from `server/12_download_evidence_dbs.sh`. The
+  true-path closure is now computed by the built-in dependency-free
+  `pufprobe.ontology_graph` reader, so goatools is no longer required to run
+  the pipeline (it remains optional for independent GO enrichment work).
 
 ### Changed
 

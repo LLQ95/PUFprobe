@@ -8,9 +8,10 @@
 #            - species list and species tree
 #            - per-species protein networks for the target taxid panel
 #            - optional global protein.aliases table (STRING_WITH_ALIASES=1)
-#   go       GO ontology (go-basic.obo) for true-path propagation; installs
-#            goatools. Set WITH_GOA=1 to also fetch the GOA reference-proteome
-#            GAF (~23 GB gz) used for BPO model training.
+#   go       GO ontology (go-basic.obo) for true-path propagation; PUFprobe
+#            parses it with its own dependency-free reader. Set WITH_GOA=1 to
+#            also fetch the GOA reference-proteome GAF (~23 GB gz) used for
+#            BPO model training.
 #   mcsa     M-CSA catalytic residues / entries (JSON API) for the pocket
 #            catalytic-template channel
 #   hhsuite  UniRef30 HHblits database (large; stored on the data volume and
@@ -185,15 +186,11 @@ go_db() {
     else
         log "skipping GOA GAF (set WITH_GOA=1 to fetch the ~23 GB reference-proteome GAF)"
     fi
-    local env="${PUFPROBE_ENV:-pufprobe}"
-    if conda env list 2>/dev/null | awk '{print $1}' | grep -qx "$env"; then
-        log "ensuring goatools is available in conda env '$env'"
-        conda run --no-capture-output -n "$env" \
-            python -m pip install --quiet --upgrade goatools \
-            || log "  WARN: goatools install failed; install it manually"
-    else
-        log "conda env '$env' not found; skip goatools install (pip install goatools later)"
-    fi
+    # PUFprobe parses go-basic.obo with its own dependency-free OBO reader
+    # (pufprobe.ontology_graph) and applies the is_a/part_of true-path closure
+    # during the rank stage, so no goatools install is required. goatools is
+    # only needed if you want to run independent GO enrichment analyses.
+    log "go-basic.obo ready; PUFprobe's built-in ontology reader needs no extra Python package."
     done_step "go"
 }
 

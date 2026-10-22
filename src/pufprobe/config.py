@@ -93,6 +93,10 @@ DEFAULTS: Dict[str, Any] = {
         "high_confidence": 0.80,
         "min_confidence_annotate": 0.80,
         "require_independent_groups": 2,
+        # Path to go-basic.obo used for GO true-path propagation. Empty means
+        # look for "go-basic.obo" in the search/rank database directory (dbdir).
+        # When no ontology is found GO terms are kept at their annotated level.
+        "go_obo_path": "",
         # Rule-based fusion. "group_noisy_or" (default) aggregates evidence at
         # the level of independent evidence groups: the strongest reliability-
         # discounted hit is taken per group, and group strengths are combined

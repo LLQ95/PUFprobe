@@ -413,6 +413,60 @@ def test_calibration_metadata_identity(rank_workdir):
     assert "no learned model" in cal["fusion"]
     assert cal["fusion_method"] == "group_noisy_or"
     assert cal["single_group_cap"] == 0.60
+    assert cal["go_true_path_propagation"] == "disabled"
+    assert cal["n_go_propagated"] == 0
+
+
+_GO_OBO = """\
+format-version: 1.2
+
+[Term]
+id: GO:0000001
+name: root one
+namespace: biological_process
+
+[Term]
+id: GO:0000002
+name: child two
+namespace: biological_process
+is_a: GO:0000001 ! root one
+"""
+
+
+def test_go_true_path_propagation_via_pipeline(rank_workdir, tmp_path: Path):
+    from pufprobe.rank import pipeline as rank_pipeline
+
+    dbdir = tmp_path / "dbdir"
+    dbdir.mkdir()
+    (dbdir / "go-basic.obo").write_text(_GO_OBO, encoding="utf-8")
+
+    search = {
+        "sA@g1": [
+            {
+                "channel": "eggnog",
+                "target_id": "GO:0000002",
+                "target_label": "child two",
+                "score": 1.0,
+                "evalue": None,
+                "coverage": None,
+                "details": {"db": "go"},
+            }
+        ],
+    }
+    (rank_workdir.path("search", "search_evidence.json")).write_text(
+        json.dumps(search), encoding="utf-8"
+    )
+
+    rank_pipeline.run(rank_workdir, _custom_config(), dbdir=dbdir)
+    preds = {f"{p['sample_id']}@{p['locus_tag']}": p
+             for p in json.loads(rank_workdir.path("rank", "predictions.json").read_text("utf-8"))}
+    term_ids = {t["term_id"] for t in preds["sA@g1"]["terms"]}
+    # Direct child term and its propagated ancestor are both present.
+    assert {"GO:0000002", "GO:0000001"} <= term_ids
+
+    cal = json.loads(rank_workdir.path("rank", "calibration.json").read_text("utf-8"))
+    assert cal["go_true_path_propagation"] == "applied"
+    assert cal["n_go_propagated"] == 1
 
 
 def test_priority_scoring(rank_workdir):

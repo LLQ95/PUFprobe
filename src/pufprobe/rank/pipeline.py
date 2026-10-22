@@ -32,6 +32,7 @@ from typing import Any, Dict, List, Optional
 
 from pufprobe.io_utils import read_json, write_json
 from pufprobe.logging_utils import get_logger
+from pufprobe.ontology_graph import load_go_obo
 from pufprobe.ontology_names import load_pfam_names
 from pufprobe.models import (
     Family,
@@ -93,6 +94,18 @@ def run(
             pfam_names_path,
         )
 
+    # Gene Ontology true-path propagation. The configured path wins; otherwise
+    # go-basic.obo (or a gzip copy) is sought in the database directory.
+    go_ontology = load_go_obo(_resolve_go_obo_path(config, dbdir))
+    go_propagated = go_ontology is not None
+    n_go_propagated = 0
+    if go_ontology is not None:
+        evidence_map, n_go_propagated = go_ontology.propagate_evidence(evidence_map)
+        log.info(
+            "GO true-path propagation applied: %d ancestor-term evidence entries added.",
+            n_go_propagated,
+        )
+
     model, model_note = load_weights_model(weights)
     if model is None:
         method = config["rank"].get("fusion_method", "group_noisy_or")
@@ -102,6 +115,7 @@ def run(
     predictions = fuse_proteins(
         records, evidence_map, config,
         weights_model=model, pfam_names=pfam_names,
+        go_propagated=go_propagated,
     )
 
     # Calibration: no held-out calibration set is produced by the upstream
@@ -139,6 +153,8 @@ def run(
         "n_predictions": len(predictions),
         "n_terms": sum(len(p.terms) for p in predictions),
         "n_unanchored_families": len(priority_rows),
+        "go_true_path_propagation": "applied" if go_propagated else "disabled",
+        "n_go_propagated": n_go_propagated,
     }
     write_json(workdir.path("rank", "calibration.json"), calibration_payload)
 
@@ -155,3 +171,22 @@ def run(
         sum(len(p.terms) for p in predictions),
         len(priority_rows),
     )
+
+
+def _resolve_go_obo_path(config: Dict[str, Any], dbdir: Optional[Path]) -> Optional[Path]:
+    """Locate go-basic.obo.
+
+    An explicit ``rank.go_obo_path`` takes precedence. Otherwise the plain
+    and gzip-compressed names are probed in the database directory. Returns
+    None when no ontology is configured or present.
+    """
+    configured = str(config.get("rank", {}).get("go_obo_path", "") or "").strip()
+    if configured:
+        return Path(configured)
+    if dbdir is None:
+        return None
+    for name in ("go-basic.obo", "go-basic.obo.gz"):
+        candidate = dbdir / name
+        if candidate.exists():
+            return candidate
+    return None

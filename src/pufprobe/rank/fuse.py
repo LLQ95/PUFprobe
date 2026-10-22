@@ -307,8 +307,14 @@ def fuse_proteins(
     config: Dict[str, Any],
     weights_model: Any = None,
     pfam_names: Optional[Dict[str, Dict[str, str]]] = None,
+    go_propagated: bool = False,
 ) -> List[ProteinPrediction]:
-    """Fuse evidence for every CDS record into ranked terms."""
+    """Fuse evidence for every CDS record into ranked terms.
+
+    ``go_propagated`` indicates that GO evidence was already extended to its
+    true-path ancestors by the rank pipeline. When it is false a single
+    reminder is logged that GO candidates are kept at their annotated level.
+    """
     rank_cfg = config["rank"]
 
     predictions: List[ProteinPrediction] = []
@@ -320,10 +326,11 @@ def fuse_proteins(
         for ev in evs:
             ttype, tid = classify_term(ev)
             if ttype == "GO" and not seen_go:
-                log.info(
-                    "GO true-path propagation not applied: no ontology library loaded; "
-                    "GO candidates are kept as annotated."
-                )
+                if not go_propagated:
+                    log.info(
+                        "GO true-path propagation not applied: no ontology library loaded; "
+                        "GO candidates are kept as annotated."
+                    )
                 seen_go = True
             groups.setdefault((ttype, tid), []).append(ev)
 
