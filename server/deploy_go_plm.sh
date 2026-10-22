@@ -148,13 +148,21 @@ do_plm_full()  { build_library "$DBDIR/plm_ref" 0; }
 # ---------------------------------------------------------------------------
 do_search() {
   local channels="$1"
-  local refdir="$DBDIR/plm_ref"
+  # Default to the full library; override with PLM_REF_DIR to smoke-test the
+  # small library first (PLM_REF_DIR=$DBDIR/plm_ref_smoke).
+  local refdir="${PLM_REF_DIR:-$DBDIR/plm_ref}"
   [ -f "$refdir/plm_ref_manifest.json" ] || \
     die "reference library missing at $refdir; run plm-smoke/plm-full first."
+  log "Using reference library: $refdir"
   log "Search channels: $channels"
-  "${CRUN[@]}" pufprobe --workdir "$WD" --threads 96 \
+  local cfg="$WD/plm_${channels//[^a-z_]/_}_config.json"
+  "${CRUN[@]}" python -c \
+    'import json,os,sys; p,r=sys.argv[1],sys.argv[2]; cfg=json.load(open(p)) if os.path.exists(p) else {}; cfg.setdefault("search",{})["plm_ref_dir"]=r; json.dump(cfg,open(p,"w"),indent=2); print("wrote",p)' \
+    "$cfg" "$refdir"
+  "${CRUN[@]}" pufprobe --workdir "$WD" --threads 96 --config "$cfg" \
     search --channels "$channels" --dbdir "$DBDIR" --force
-  "${CRUN[@]}" pufprobe --workdir "$WD" --threads 96 rank --dbdir "$DBDIR" --force
+  "${CRUN[@]}" pufprobe --workdir "$WD" --threads 96 --config "$cfg" \
+    rank --dbdir "$DBDIR" --force
   "${CRUN[@]}" python -c \
     'import json,sys; from collections import Counter; se=json.load(open(sys.argv[1])); c=Counter(e["channel"] for evs in se.values() for e in evs); print("channel counts:", dict(c))' \
     "$WD/05_search/search_evidence.json"
