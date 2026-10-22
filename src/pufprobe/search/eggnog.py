@@ -18,6 +18,7 @@ orthogonal evidence groups.
 from __future__ import annotations
 
 import math
+import os
 import re
 import subprocess
 import tempfile
@@ -257,21 +258,34 @@ def run_eggnog_search(
     emapper_path: Optional[str] = None,
 ) -> Tuple[Dict[str, List[Evidence]], Optional[Path]]:
     """Run emapper on the representative fasta and return Evidence."""
+    # Resolve the interpreter and environment. An absolute emapper path often
+    # points into a dedicated conda env (emapper.py is not on the active env's
+    # PATH). Invoke it with that env's python and prepend its bin directory to
+    # PATH so the bundled diamond/MMseqs2 are found even when PUFprobe itself
+    # runs from a different conda env.
+    run_env = os.environ.copy()
     if emapper_path:
-        if not Path(emapper_path).exists():
+        emapper_exe = Path(emapper_path)
+        if not emapper_exe.exists():
             logger.warning(
                 "configured emapper path does not exist: %s; skipping eggnog.",
                 emapper_path,
             )
             return {}, None
-        exe = emapper_path
+        env_bin = emapper_exe.parent
+        env_python = env_bin / "python"
+        if env_python.exists():
+            cmd_head = [str(env_python), str(emapper_exe)]
+        else:
+            cmd_head = [str(emapper_exe)]
+        run_env["PATH"] = str(env_bin) + os.pathsep + run_env.get("PATH", "")
     else:
         info = externals.emapper()
         if not info.available:
             logger.warning(
                 "emapper not found; skipping eggnog channel. %s", INSTALL_HINT)
             return {}, None
-        exe = info.path or "emapper"
+        cmd_head = [info.path or "emapper"]
 
     out_dir.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="eggnog_", dir=str(out_dir)))
@@ -288,8 +302,8 @@ def run_eggnog_search(
     write_fasta(in_fasta, safe_records)
 
     prefix = "eggnog"
-    cmd = [
-        exe, "-i", str(in_fasta),
+    cmd = cmd_head + [
+        "-i", str(in_fasta),
         "--output", prefix,
         "--output_dir", str(tmp),
         "--cpu", str(max(1, int(threads))),
@@ -300,12 +314,17 @@ def run_eggnog_search(
         cmd += ["--data_dir", data_dir]
 
     try:
-        completed = subprocess.run(cmd, capture_output=True, text=True)
+        completed = subprocess.run(
+            cmd, capture_output=True, text=True, env=run_env)
         annot = tmp / f"{prefix}.emapper.annotations"
         if completed.returncode != 0 or not annot.exists():
             logger.warning(
-                "emapper failed; skipping eggnog channel. %s\n%s",
-                completed.stderr.strip()[-500:], INSTALL_HINT,
+                "emapper failed (returncode %s); skipping eggnog channel.\n"
+                "STDOUT: %s\nSTDERR: %s\n%s",
+                completed.returncode,
+                (completed.stdout or "").strip()[-800:],
+                (completed.stderr or "").strip()[-800:],
+                INSTALL_HINT,
             )
             return {}, None
     except (subprocess.SubprocessError, OSError) as exc:

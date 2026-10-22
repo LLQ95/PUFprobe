@@ -517,7 +517,7 @@ def test_eggnog_run_end_to_end(tmp_path: Path, monkeypatch) -> None:
     fake_emapper = tmp_path / "fake_emapper.py"
     fake_emapper.write_text("#!/usr/bin/env python\n", encoding="utf-8")
 
-    def fake_run(cmd, capture_output=True, text=True):
+    def fake_run(cmd, capture_output=True, text=True, env=None):
         # Locate the output directory and write an annotations file there.
         out = Path(cmd[cmd.index("--output_dir") + 1])
         prefix = cmd[cmd.index("--output") + 1]
@@ -527,13 +527,13 @@ def test_eggnog_run_end_to_end(tmp_path: Path, monkeypatch) -> None:
         # safe_map round-trip is exercised.
         qid = in_fasta.read_text(encoding="utf-8").splitlines()[0][1:]
         header = "\t".join(eggnog_mod.ANNOT_FIELDS)
-        line = "\t".join([
-            qid, "210007.1", "7e-180", "620.0",
-            "COG1234@1|root", "1|root", "S",
-            "DUF874 family protein", "-",
-            "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-",
-            "DUF874",
-        ])
+        line = _table_row(
+            eggnog_mod.ANNOT_FIELDS,
+            query=qid, seed_ortholog="210007.1",
+            evalue="7e-180", score="620.0",
+            eggNOG_OGs="COG1234@1|root",
+            PFAMs="DUF874",
+        )
         (out / f"{prefix}.emapper.annotations").write_text(
             "#" + header + "\n" + line + "\n", encoding="utf-8"
         )
