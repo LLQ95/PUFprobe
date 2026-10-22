@@ -104,6 +104,7 @@ def run(
                 data_dir=search_cfg.get("eggnog_data_dir") or None,
                 search_mode=str(search_cfg.get("eggnog_search_mode", "diamond")),
                 pfam_names=pfam_names,
+                emapper_path=search_cfg.get("eggnog_emapper_path") or None,
             )
         elif channel == "tmvec":
             info = externals.tmvec()

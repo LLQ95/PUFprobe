@@ -439,8 +439,6 @@ def test_eggnog_missing_binary(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_eggnog_run_end_to_end(tmp_path: Path, monkeypatch) -> None:
-    import threading
-    from pufprobe import externals
     from pufprobe.io_utils import write_fasta
 
     dbdir = tmp_path / "dbdir"
@@ -449,10 +447,9 @@ def test_eggnog_run_end_to_end(tmp_path: Path, monkeypatch) -> None:
     write_fasta(reps, [("q1@g1", "M" * 50)])
     out_dir = tmp_path / "out"
 
-    monkeypatch.setattr(
-        externals, "emapper",
-        lambda: ToolInfo(name="emapper", available=True, path="emapper"),
-    )
+    # Call emapper by absolute path (an emapper installed in another env).
+    fake_emapper = tmp_path / "fake_emapper.py"
+    fake_emapper.write_text("#!/usr/bin/env python\n", encoding="utf-8")
 
     def fake_run(cmd, capture_output=True, text=True):
         # Locate the output directory and write an annotations file there.
@@ -483,12 +480,20 @@ def test_eggnog_run_end_to_end(tmp_path: Path, monkeypatch) -> None:
     pfam_names = {"PF05637": {"id": "DUF874", "name": "DUF874 family"}}
     ev, raw = eggnog_mod.run_eggnog_search(
         reps, dbdir, out_dir, threads=4, pfam_names=pfam_names,
+        emapper_path=str(fake_emapper),
     )
     assert "q1@g1" in ev
     targets = {e.target_id for e in ev["q1@g1"]}
     assert "COG1234" in targets
     assert "PF05637" in targets
     assert all(e.channel.value == "eggnog" for e in ev["q1@g1"])
+
+    # A configured path that does not exist is skipped rather than crashing.
+    ev2, raw2 = eggnog_mod.run_eggnog_search(
+        reps, dbdir, out_dir, emapper_path=str(tmp_path / "missing.py"),
+    )
+    assert ev2 == {}
+    assert raw2 is None
 
 
 def test_expand_homology_pfam() -> None:

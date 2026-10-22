@@ -73,9 +73,12 @@ DEFAULTS: Dict[str, Any] = {
         "hhblits_jobs": 1,
         # eggNOG-mapper annotates the whole representative fasta in one call.
         # data_dir is left to emapper's default when empty; search_mode is the
-        # emapper search engine (diamond, mmseqs or hmmer).
+        # emapper search engine (diamond, mmseqs or hmmer). emapper_path lets
+        # the tool call an emapper installed in a different conda env by its
+        # absolute path; empty means detect it on PATH.
         "eggnog_data_dir": "",
         "eggnog_search_mode": "diamond",
+        "eggnog_emapper_path": "",
         "report_evalue": 1e-3,
     },
     # context

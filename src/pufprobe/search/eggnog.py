@@ -224,14 +224,25 @@ def run_eggnog_search(
     data_dir: Optional[str] = None,
     search_mode: str = "diamond",
     pfam_names: Optional[Dict[str, Dict[str, str]]] = None,
+    emapper_path: Optional[str] = None,
 ) -> Tuple[Dict[str, List[Evidence]], Optional[Path]]:
     """Run emapper on the representative fasta and return Evidence."""
-    info = externals.emapper()
-    if not info.available:
-        logger.warning("emapper not found; skipping eggnog channel. %s", INSTALL_HINT)
-        return {}, None
+    if emapper_path:
+        if not Path(emapper_path).exists():
+            logger.warning(
+                "configured emapper path does not exist: %s; skipping eggnog.",
+                emapper_path,
+            )
+            return {}, None
+        exe = emapper_path
+    else:
+        info = externals.emapper()
+        if not info.available:
+            logger.warning(
+                "emapper not found; skipping eggnog channel. %s", INSTALL_HINT)
+            return {}, None
+        exe = info.path or "emapper"
 
-    exe = info.path or "emapper"
     out_dir.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="eggnog_", dir=str(out_dir)))
     raw_tsv = out_dir / "eggnog_raw.tsv"
