@@ -68,6 +68,9 @@ DEFAULTS: Dict[str, Any] = {
         "foldseek_min_tmscore": 0.5,
         "foldseek_report_evalue": 1e-2,
         "hhblits_iterations": 2,
+        # Independent hhblits searches run concurrently; the --threads budget
+        # is split across them. 1 keeps the serial default.
+        "hhblits_jobs": 1,
         "report_evalue": 1e-3,
     },
     # context

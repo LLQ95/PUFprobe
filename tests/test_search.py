@@ -226,6 +226,63 @@ def test_parse_hhr_table() -> None:
     assert hits[4][3] == pytest.approx(231.0)
 
 
+def test_hhblits_concurrent_jobs(tmp_path: Path, monkeypatch) -> None:
+    import threading
+    import time
+    from pufprobe import externals
+
+    dbdir = tmp_path / "dbdir"
+    dbdir.mkdir()
+    (dbdir / "hhblits_db_hhm.ffdata").write_text("x", encoding="utf-8")
+    reps = tmp_path / "reps.faa"
+    n = 8
+    from pufprobe.io_utils import write_fasta
+    write_fasta(reps, [(f"q{i}@g{i}", "M" * 50) for i in range(n)])
+    out_dir = tmp_path / "out"
+
+    monkeypatch.setattr(
+        externals, "hhblits",
+        lambda: ToolInfo(name="hhblits", available=True, path="hhblits"),
+    )
+
+    active = {"n": 0, "max": 0}
+    lock = threading.Lock()
+
+    class FakeCompleted:
+        returncode = 0
+
+    def fake_run(cmd, capture_output=True, text=True) -> FakeCompleted:
+        out = Path(cmd[cmd.index("-o") + 1])
+        with lock:
+            active["n"] += 1
+            active["max"] = max(active["max"], active["n"])
+        time.sleep(0.05)
+        out.write_text(
+            "Query q\n"
+            " No Hit                             Prob E-value P-value  Score    SS Cols Query HMM  Template HMM\n"
+            "  1 UniRef100_X1 Some protein 100.0 1e-40 1e-45 200.0 0.0 50 1-50 1-50 (100)\n",
+            encoding="utf-8",
+        )
+        with lock:
+            active["n"] -= 1
+        return FakeCompleted()
+
+    monkeypatch.setattr(hhblits_mod.subprocess, "run", fake_run)
+
+    ev, raw = hhblits_mod.run_hhblits_search(
+        reps, dbdir, out_dir, iterations=1, threads=8, jobs=4
+    )
+    assert len(ev) == n
+    for i in range(n):
+        hits = ev[f"q{i}@g{i}"]
+        assert len(hits) == 1
+        assert hits[0].score == pytest.approx(1.0)
+    # The 4 workers must overlap, proving searches ran concurrently.
+    assert active["max"] >= 2
+    # Raw TSV keeps one deterministic row per query plus the header.
+    assert len(raw.read_text(encoding="utf-8").strip().splitlines()) == n + 1
+
+
 def _minimal_workdir(tmp_path: Path) -> WorkDir:
     wd = WorkDir(tmp_path / "run")
     families = [

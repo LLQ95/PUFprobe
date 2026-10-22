@@ -86,6 +86,7 @@ def run(
                 reps_faa, dbdir, out_dir,
                 iterations=int(search_cfg["hhblits_iterations"]),
                 threads=int(workdir.threads),
+                jobs=int(search_cfg.get("hhblits_jobs", 1)),
             )
         elif channel == "tmvec":
             info = externals.tmvec()

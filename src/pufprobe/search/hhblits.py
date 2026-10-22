@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -45,6 +46,7 @@ def run_hhblits_search(
     out_dir: Path,
     iterations: int = 2,
     threads: int = 1,
+    jobs: int = 1,
 ) -> Tuple[Dict[str, List[Evidence]], Optional[Path]]:
     info = externals.hhblits()
     if not info.available:
@@ -69,27 +71,44 @@ def run_hhblits_search(
     tmp = Path(tempfile.mkdtemp(prefix="hhblits_", dir=str(out_dir)))
     raw_tsv = out_dir / "hhblits_raw.tsv"
 
-    evidence: Dict[str, List[Evidence]] = {}
-    rows: List[str] = ["query\ttarget\tprob\tevalue\tscore"]
-    for header, seq in read_fasta(reps_faa):
-        query_key = header.split()[0]
-        q_fasta = tmp / f"{query_key.replace('@', '_')}.faa"
-        out_hhr = tmp / f"{query_key.replace('@', '_')}.hhr"
+    queries = [(header.split()[0], seq) for header, seq in read_fasta(reps_faa)]
+    workers = max(1, min(int(jobs), len(queries))) if queries else 1
+    # Split the CPU budget across the concurrent searches. A single query
+    # scales sublinearly with -cpu, so running several independent searches
+    # uses the cores more efficiently than one -cpu=$threads invocation.
+    cpu_per_worker = max(1, int(threads) // workers)
+
+    def _run_one(item: Tuple[str, str]) -> Tuple[str, List[Tuple[str, float, float, float]]]:
+        query_key, seq = item
+        safe = query_key.replace("@", "_")
+        q_fasta = tmp / f"{safe}.faa"
+        out_hhr = tmp / f"{safe}.hhr"
         write_fasta(q_fasta, [(query_key, seq)])
         cmd = [exe, "-i", str(q_fasta), "-d", str(db_path),
                "-n", str(iterations), "-o", str(out_hhr),
-               "-cpu", str(threads)]
+               "-cpu", str(cpu_per_worker)]
         try:
             completed = subprocess.run(cmd, capture_output=True, text=True)
             if completed.returncode != 0 or not out_hhr.exists():
                 logger.warning("hhblits failed for %s (%s); skipping query.",
                                query_key, completed.stderr.strip()[:200])
-                continue
+                return query_key, []
         except (subprocess.SubprocessError, OSError) as exc:
             logger.warning("hhblits error for %s (%s); skipping query.", query_key, exc)
-            continue
+            return query_key, []
+        return query_key, parse_hhr(out_hhr)
 
-        for name, prob, evalue, score in parse_hhr(out_hhr):
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            # pool.map preserves input order, so the raw TSV stays deterministic.
+            results = list(pool.map(_run_one, queries))
+    else:
+        results = [_run_one(item) for item in queries]
+
+    evidence: Dict[str, List[Evidence]] = {}
+    rows: List[str] = ["query\ttarget\tprob\tevalue\tscore"]
+    for query_key, hits in results:
+        for name, prob, evalue, score in hits:
             rows.append(f"{query_key}\t{name}\t{prob:.2f}\t{evalue:.2e}\t{score:.2f}")
             evidence.setdefault(query_key, []).append(Evidence(
                 channel=EvidenceChannel.REMOTE_HOMOLOGY,
