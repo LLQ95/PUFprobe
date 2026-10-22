@@ -31,6 +31,10 @@ from pufprobe.models import Evidence, EvidenceChannel
 
 logger = get_logger(__name__)
 
+# Pfam short identifier for an uncharacterised family, e.g. "DUF874". Profile
+# hits frequently carry such a token in the description ("DUF874 family").
+_DUF_NAME_RE = re.compile(r"\bDUF\d+\b")
+
 # DE line carrying an EC number, e.g. "DE            EC=3.4.24.-;".
 _EC_DE_RE = re.compile(r"EC=([0-9]+\.[0-9]+\.[0-9]+\.[0-9A-Za-z\-]+)")
 _DR_PREFIX = "DR   "
@@ -193,5 +197,56 @@ def expand_evidence(
                             )
                         )
                         added += 1
+        expanded[key] = out
+    return expanded, added
+
+
+def expand_homology_pfam(
+    evidence: Dict[str, List[Evidence]],
+    pfam_id_index: Dict[str, str],
+) -> Tuple[Dict[str, List[Evidence]], int]:
+    """Supplement REMOTE_HOMOLOGY hits with Pfam accessions.
+
+    Profile hits carry a description that often contains a Pfam short
+    identifier for an uncharacterised family (e.g. "DUF874 family"). Mapping
+    that token to the Pfam accession lets the sequence-profile group converge
+    on the same term as a database channel that reports the same Pfam. The
+    channel stays REMOTE_HOMOLOGY (the hit still originates from the profile
+    search), so the added evidence remains one group; a database channel on
+    the same accession is the genuinely independent second group.
+    """
+    if not pfam_id_index:
+        return evidence, 0
+
+    expanded: Dict[str, List[Evidence]] = {}
+    seen: set = set()
+    added = 0
+
+    for key, hits in evidence.items():
+        out = list(hits)
+        for hit in hits:
+            if hit.channel != EvidenceChannel.REMOTE_HOMOLOGY:
+                continue
+            for short in _DUF_NAME_RE.findall(hit.target_label or ""):
+                accession = pfam_id_index.get(short)
+                if not accession or (key, accession) in seen:
+                    continue
+                seen.add((key, accession))
+                details = dict(hit.details or {})
+                details["db"] = "pfam"
+                details["pfam_short"] = short
+                details["xref"] = True
+                out.append(
+                    Evidence(
+                        channel=hit.channel,
+                        target_id=accession,
+                        target_label=accession,
+                        score=hit.score,
+                        evalue=hit.evalue,
+                        coverage=hit.coverage,
+                        details=details,
+                    )
+                )
+                added += 1
         expanded[key] = out
     return expanded, added

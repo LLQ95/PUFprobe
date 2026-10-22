@@ -40,10 +40,16 @@ class EvidenceChannel(str, Enum):
     POCKET = "pocket"
     CONTEXT = "context"
     DATABASE = "database"
+    EGGNOG = "eggnog"
 
 
 # Independent evidence groups used by the channel-diversity rule. Channels in
 # the same group are not counted twice when deciding high confidence.
+#
+# eggNOG-mapper is treated as a curated database witness (group "database"),
+# independent of the representative profile searches the pipeline runs itself
+# (group "sequence_profile"). An eggNOG annotation and a profile hit to the
+# same function therefore count as two orthogonal groups.
 CHANNEL_GROUPS: Dict[str, str] = {
     EvidenceChannel.PLM_NEIGHBOR.value: "sequence",
     EvidenceChannel.FOLDSEEK.value: "structure",
@@ -51,6 +57,7 @@ CHANNEL_GROUPS: Dict[str, str] = {
     EvidenceChannel.POCKET.value: "structure",
     EvidenceChannel.CONTEXT.value: "context",
     EvidenceChannel.DATABASE.value: "database",
+    EvidenceChannel.EGGNOG.value: "database",
 }
 
 

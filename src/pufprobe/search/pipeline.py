@@ -29,6 +29,8 @@ from pufprobe import externals
 from pufprobe.io_utils import read_json, write_json
 from pufprobe.logging_utils import get_logger
 from pufprobe.models import Evidence, families_from_dicts, to_dict
+from pufprobe.ontology_names import load_pfam_names
+from pufprobe.search import eggnog as eggnog_channel
 from pufprobe.search import foldseek as foldseek_channel
 from pufprobe.search import hhblits as hhblits_channel
 from pufprobe.search import idmapping
@@ -55,6 +57,13 @@ def run(
     channels = channels or list(search_cfg["channels"])
     out_dir = workdir.stage_dir("search")
     structures_dir = workdir.stage_dir("fold") / "structures"
+
+    # Pfam name index (accession -> {id, name, type}) and its reverse
+    # (short id -> accession). Used to name eggNOG Pfam hits by accession and
+    # to map DUF tokens in profile-hit descriptions onto the same accessions.
+    pfam_names_path = dbdir / "pfam_names.json" if dbdir is not None else None
+    pfam_names = load_pfam_names(pfam_names_path)
+    pfam_id_index = eggnog_channel.build_pfam_id_index(pfam_names)
 
     merged: Dict[str, List[Evidence]] = {}
 
@@ -88,6 +97,14 @@ def run(
                 threads=int(workdir.threads),
                 jobs=int(search_cfg.get("hhblits_jobs", 1)),
             )
+        elif channel == "eggnog":
+            evidence, _ = eggnog_channel.run_eggnog_search(
+                reps_faa, dbdir, out_dir,
+                threads=int(workdir.threads),
+                data_dir=search_cfg.get("eggnog_data_dir") or None,
+                search_mode=str(search_cfg.get("eggnog_search_mode", "diamond")),
+                pfam_names=pfam_names,
+            )
         elif channel == "tmvec":
             info = externals.tmvec()
             if not info.available:
@@ -113,6 +130,16 @@ def run(
         logger.info(
             "Term normalization added %d ontology evidence entries (Pfam/EC/GO).",
             n_added,
+        )
+
+    # Map DUF tokens in profile-hit descriptions onto Pfam accessions so the
+    # sequence-profile group and the eggNOG database group converge on the
+    # same term.
+    merged, n_pfam = idmapping.expand_homology_pfam(merged, pfam_id_index)
+    if n_pfam:
+        logger.info(
+            "Profile-hit Pfam mapping added %d Pfam accession evidence entries.",
+            n_pfam,
         )
 
     payload = {key: [to_dict(ev) for ev in evs] for key, evs in merged.items()}

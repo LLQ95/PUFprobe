@@ -8,9 +8,11 @@ import pytest
 from pufprobe.config import load_config
 from pufprobe.externals import ToolInfo
 from pufprobe.io_utils import read_json, write_json
-from pufprobe.models import Family
+from pufprobe.models import Evidence, EvidenceChannel, Family
+from pufprobe.search import eggnog as eggnog_mod
 from pufprobe.search import foldseek as foldseek_mod
 from pufprobe.search import hhblits as hhblits_mod
+from pufprobe.search import idmapping
 from pufprobe.search import mmseqs_search as mmseqs_mod
 from pufprobe.search.pipeline import run as search_run
 from pufprobe.workdir import WorkDir
@@ -363,3 +365,152 @@ def test_foldseek_finds_models_from_absolute_structures_dir(tmp_path: Path, monk
         "search must request the alignment backtrace (-a) so convertalis can "
         "emit alntmscore/qcov/tcov without a 'cigar is missing' failure"
     )
+
+
+def test_parse_emapper_annotations(tmp_path: Path) -> None:
+    header = "\t".join(eggnog_mod.ANNOT_FIELDS)
+    rows = [
+        "## emapper-2.1.12",
+        "#" + header,
+        # A DUF-only protein: OG, two GO terms and a Pfam short name.
+        "\t".join([
+            "q1_g", "210007.1", "7e-180", "620.0",
+            "COG1234@1|root,5ABC@1224|Proteobacteria",
+            "1224|Proteobacteria", "S",
+            "DUF874 family protein", "-",
+            "GO:0005524,GO:0006355", "-",
+            "-", "-", "-", "-", "-", "-", "-", "-", "-",
+            "DUF874",
+        ]),
+        # An enzyme with a description, preferred name, EC and a Pfam.
+        "\t".join([
+            "q2_g", "210007.2", "3e-51", "200.0",
+            "COG5678@1|root,COG5678@2|Bacteria",
+            "2|Bacteria", "E",
+            "some dehydrogenase", "thrA",
+            "GO:0004072", "1.1.1.3",
+            "ko:K12524", "-", "-", "-", "-", "-", "-", "-", "-", "-",
+            "DUF1523",
+        ]),
+    ]
+    annot = tmp_path / "x.emapper.annotations"
+    annot.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    pfam_names = {
+        "PF05637": {"id": "DUF874", "name": "DUF874 family", "type": "Domain"},
+        "PF07540": {"id": "DUF1523", "name": "DUF1523 family", "type": "Domain"},
+    }
+    idx = eggnog_mod.build_pfam_id_index(pfam_names)
+    assert idx["DUF874"] == "PF05637"
+    parsed = eggnog_mod.parse_emapper(annot, idx)
+    assert set(parsed) == {"q1_g", "q2_g"}
+
+    q1 = parsed["q1_g"]
+    kinds_q1 = [p["kind"] for p in q1]
+    # The COG id (broad, stable) names the OG term, ahead of the fine OG.
+    assert q1[0]["kind"] == "og"
+    assert q1[0]["target_id"] == "COG1234"
+    assert kinds_q1.count("go") == 2
+    # The Pfam short name is mapped to its accession.
+    pfam_q1 = [p for p in q1 if p["kind"] == "pfam"]
+    assert pfam_q1[0]["target_id"] == "PF05637"
+    # E=7e-180 -> -log10(E)/200 ~ 0.896.
+    assert q1[0]["score"] == pytest.approx(0.896, abs=1e-2)
+
+    q2 = parsed["q2_g"]
+    ec_q2 = [p for p in q2 if p["kind"] == "ec"]
+    assert ec_q2[0]["target_id"] == "EC:1.1.1.3"
+    assert q2[0]["target_label"] == "some dehydrogenase"
+
+
+def test_eggnog_missing_binary(tmp_path: Path, monkeypatch) -> None:
+    from pufprobe import externals
+    from pufprobe.io_utils import write_fasta
+    reps = tmp_path / "reps.faa"
+    write_fasta(reps, [("q1@g1", "M" * 50)])
+    monkeypatch.setattr(
+        externals, "emapper",
+        lambda: ToolInfo(name="emapper", available=False),
+    )
+    ev, raw = eggnog_mod.run_eggnog_search(
+        reps, tmp_path / "db", tmp_path / "out",
+    )
+    assert ev == {}
+    assert raw is None
+
+
+def test_eggnog_run_end_to_end(tmp_path: Path, monkeypatch) -> None:
+    import threading
+    from pufprobe import externals
+    from pufprobe.io_utils import write_fasta
+
+    dbdir = tmp_path / "dbdir"
+    dbdir.mkdir()
+    reps = tmp_path / "reps.faa"
+    write_fasta(reps, [("q1@g1", "M" * 50)])
+    out_dir = tmp_path / "out"
+
+    monkeypatch.setattr(
+        externals, "emapper",
+        lambda: ToolInfo(name="emapper", available=True, path="emapper"),
+    )
+
+    def fake_run(cmd, capture_output=True, text=True):
+        # Locate the output directory and write an annotations file there.
+        out = Path(cmd[cmd.index("--output_dir") + 1])
+        prefix = cmd[cmd.index("--output") + 1]
+        in_fasta = Path(cmd[cmd.index("-i") + 1])
+        out.mkdir(parents=True, exist_ok=True)
+        # Use the actual safe query id written by the pipeline so the
+        # safe_map round-trip is exercised.
+        qid = in_fasta.read_text(encoding="utf-8").splitlines()[0][1:]
+        header = "\t".join(eggnog_mod.ANNOT_FIELDS)
+        line = "\t".join([
+            qid, "210007.1", "7e-180", "620.0",
+            "COG1234@1|root", "1|root", "S",
+            "DUF874 family protein", "-",
+            "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-",
+            "DUF874",
+        ])
+        (out / f"{prefix}.emapper.annotations").write_text(
+            "#" + header + "\n" + line + "\n", encoding="utf-8"
+        )
+
+        class Completed:
+            returncode = 0
+        return Completed()
+
+    monkeypatch.setattr(eggnog_mod.subprocess, "run", fake_run)
+    pfam_names = {"PF05637": {"id": "DUF874", "name": "DUF874 family"}}
+    ev, raw = eggnog_mod.run_eggnog_search(
+        reps, dbdir, out_dir, threads=4, pfam_names=pfam_names,
+    )
+    assert "q1@g1" in ev
+    targets = {e.target_id for e in ev["q1@g1"]}
+    assert "COG1234" in targets
+    assert "PF05637" in targets
+    assert all(e.channel.value == "eggnog" for e in ev["q1@g1"])
+
+
+def test_expand_homology_pfam() -> None:
+    idx = {"DUF874": "PF05637"}
+    ev = {
+        "sA@g1": [
+            Evidence(
+                channel=EvidenceChannel.REMOTE_HOMOLOGY,
+                target_id="UniRef100_I9YDK6 DUF874 family",
+                target_label="UniRef100_I9YDK6 DUF874 family",
+                score=1.0, evalue=7e-180,
+            )
+        ]
+    }
+    expanded, added = idmapping.expand_homology_pfam(ev, idx)
+    assert added == 1
+    hits = expanded["sA@g1"]
+    assert len(hits) == 2
+    pf = hits[1]
+    assert pf.target_id == "PF05637"
+    assert pf.channel == EvidenceChannel.REMOTE_HOMOLOGY
+    assert pf.details["pfam_short"] == "DUF874"
+    # An empty index changes nothing.
+    again, n = idmapping.expand_homology_pfam(ev, {})
+    assert n == 0

@@ -90,6 +90,20 @@ def hhsearch() -> ToolInfo:
 
 
 @lru_cache(maxsize=None)
+def emapper() -> ToolInfo:
+    """Locate eggNOG-mapper (eggNOG 7).
+
+    Bioconda installs an ``emapper`` entry point and keeps the legacy
+    ``emapper.py`` name; either is accepted.
+    """
+    for name in ("emapper", "emapper.py"):
+        info = detect_tool(name, version_args=("--version",))
+        if info.available:
+            return info
+    return ToolInfo(name="emapper", available=False)
+
+
+@lru_cache(maxsize=None)
 def p2rank() -> ToolInfo:
     # P2Rank is not distributed on bioconda; the setup script installs the
     # portable GitHub release under thirdparty/p2rank (launcher: distro/prank).
@@ -148,6 +162,7 @@ def summary() -> dict:
         "foldseek": foldseek().__dict__,
         "hhblits": hhblits().__dict__,
         "hhsearch": hhsearch().__dict__,
+        "emapper": emapper().__dict__,
         "p2rank": p2rank().__dict__,
     }
     return {

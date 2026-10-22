@@ -60,7 +60,7 @@ DEFAULTS: Dict[str, Any] = {
     },
     # search
     "search": {
-        "channels": ["mmseqs", "foldseek", "hhblits"],
+        "channels": ["mmseqs", "foldseek", "hhblits", "eggnog"],
         "foldseek_sensitivity": 9.5,
         # Structural hit quality gates: TM-score >= 0.5 is the same-fold
         # boundary, and the foldseek report E-value is kept slightly looser
@@ -71,6 +71,11 @@ DEFAULTS: Dict[str, Any] = {
         # Independent hhblits searches run concurrently; the --threads budget
         # is split across them. 1 keeps the serial default.
         "hhblits_jobs": 1,
+        # eggNOG-mapper annotates the whole representative fasta in one call.
+        # data_dir is left to emapper's default when empty; search_mode is the
+        # emapper search engine (diamond, mmseqs or hmmer).
+        "eggnog_data_dir": "",
+        "eggnog_search_mode": "diamond",
         "report_evalue": 1e-3,
     },
     # context
@@ -113,6 +118,7 @@ DEFAULTS: Dict[str, Any] = {
             "pocket": 0.60,
             "context": 0.60,
             "database": 0.90,
+            "eggnog": 0.90,
         },
         # Linear weights used only when fusion_method == "weighted_sum".
         "rule_weights": {
@@ -122,6 +128,7 @@ DEFAULTS: Dict[str, Any] = {
             "pocket": 0.12,
             "context": 0.16,
             "database": 0.12,
+            "eggnog": 0.12,
         },
         "priority_weights": {
             "structural_novelty": 0.30,
