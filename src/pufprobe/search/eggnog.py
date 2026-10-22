@@ -37,20 +37,29 @@ INSTALL_HINT = (
     "database (`download_eggnog_data.py`)."
 )
 
-# Column names in the .emapper.annotations header (emapper 2.1.x / eggNOG 7).
+# Column names in the .emapper.annotations header for emapper 3.0 / eggNOG 7.
+# emapper 2.x uses a different 21-column header (max_annot_lvl, Description,
+# no tax_ceiling/farthest_donor_lineage/annotation_confidence); the parser is
+# driven by the header it reads, so both layouts are accepted.
 ANNOT_FIELDS = [
     "query", "seed_ortholog", "evalue", "score", "eggNOG_OGs",
-    "max_annot_lvl", "COG_category", "Description", "Preferred_name",
-    "GOs", "EC", "KEGG_ko", "KEGG_Pathway", "KEGG_Module",
-    "KEGG_Reaction", "KEGG_rclass", "BRITE", "KEGG_TC", "CAZy",
-    "BiGG_Reaction", "PFAMs",
+    "tax_ceiling", "farthest_donor_lineage", "COG_category",
+    "Preferred_name", "GOs", "EC", "KEGG_ko", "KEGG_Pathway",
+    "KEGG_Module", "KEGG_Reaction", "KEGG_rclass", "BRITE",
+    "KEGG_TC", "CAZy", "BiGG_Reaction", "PFAMs",
+    "annotation_confidence",
 ]
 
-# One orthologous-group token, e.g. "COG0460@1|root" or
-# "1MW3H@1224|Proteobacteria".
+# One orthologous-group token, e.g. "COG0460@1|root",
+# "1MW3H@1224|Proteobacteria" or "DUF874@131567|A-1". A trailing "*" on the
+# token marks the primary OG in emapper 3.0.
 _OG_TOKEN_RE = re.compile(
-    r"^(?P<og>[^@|]+)@(?P<level>[^|]+?)(?:\|(?P<lvl_name>.*))?$"
+    r"^(?P<og>[^@|]+)@(?P<level>[^|]+?)(?:\|(?P<lvl_name>.*?))?(?P<star>\*)?$"
 )
+
+# One Pfam hit as written by emapper 3.0: "<short_id>_<start>_<end>",
+# e.g. "DUF874_144_191". emapper 2.x writes the plain short id instead.
+_PFAM_HIT_RE = re.compile(r"^(?P<id>.+)_(?P<start>\d+)_(?P<end>\d+)$")
 
 # Values emapper uses for missing annotations.
 _NA = {"-", "", "NA"}
@@ -95,19 +104,39 @@ def parse_ogs(ogs_text: str) -> List[Dict[str, str]]:
             "og": match.group("og").strip(),
             "level": match.group("level").strip(),
             "level_name": (match.group("lvl_name") or "").strip(),
+            "primary": "1" if match.group("star") else "0",
         })
     return out
+
+
+def parse_pfam_hits(pfams_text: str) -> List[str]:
+    """Parse the PFAMs column into unique Pfam short ids.
+
+    emapper 3.0 writes each hit as "<id>_<start>_<end>" (one domain region),
+    so the coordinate suffix is stripped and repeated ids are collapsed;
+    emapper 2.x writes the plain short id.
+    """
+    ids: List[str] = []
+    for token in _split_list(pfams_text):
+        match = _PFAM_HIT_RE.match(token)
+        short = match.group("id") if match else token
+        if short and short not in ids:
+            ids.append(short)
+    return ids
 
 
 def _best_og(ogs: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
     """Pick the term-naming OG.
 
-    A COG id (the broad, stable identifier) is preferred so that homologs
-    across species converge on the same term; otherwise the most specific
-    (last) OG is used.
+    The primary OG marked by emapper 3.0 ("*") is preferred, then a COG id
+    (the broad, stable identifier that lets homologs converge across
+    species); otherwise the most specific (last) OG is used.
     """
     if not ogs:
         return None
+    for og in ogs:
+        if og.get("primary") == "1":
+            return og
     for og in ogs:
         if og["og"].startswith("COG"):
             return og
@@ -139,8 +168,9 @@ def _evidence_payloads(
     """Build raw evidence payloads for one parsed annotation row."""
     score = evalue_to_score(rec.get("evalue", ""))
     ogs = parse_ogs(rec.get("eggNOG_OGs", ""))
-    desc = rec.get("Description", "").strip()
-    pref = rec.get("Preferred_name", "").strip()
+    # Description exists only in emapper 2.x; 3.0 drops the column.
+    desc = (rec.get("Description") or "").strip()
+    pref = (rec.get("Preferred_name") or "").strip()
     desc = "" if desc in _NA else desc
     pref = "" if pref in _NA else pref
 
@@ -172,7 +202,7 @@ def _evidence_payloads(
             "score": score, "kind": "ec",
         })
 
-    for short in _split_list(rec.get("PFAMs", "")):
+    for short in parse_pfam_hits(rec.get("PFAMs", "")):
         accession = (pfam_id_index or {}).get(short)
         if accession is not None:
             payloads.append({

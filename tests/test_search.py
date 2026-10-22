@@ -367,59 +367,125 @@ def test_foldseek_finds_models_from_absolute_structures_dir(tmp_path: Path, monk
     )
 
 
-def test_parse_emapper_annotations(tmp_path: Path) -> None:
+def _table_row(fields, **overrides) -> str:
+    vals = {f: "-" for f in fields}
+    vals.update(overrides)
+    return "\t".join(vals[f] for f in fields)
+
+
+def test_parse_emapper_v3_annotations(tmp_path: Path) -> None:
     header = "\t".join(eggnog_mod.ANNOT_FIELDS)
     rows = [
-        "## emapper-2.1.12",
+        "## emapper-3.0.0-beta6",
         "#" + header,
-        # A DUF-only protein: OG, two GO terms and a Pfam short name.
-        "\t".join([
-            "q1_g", "210007.1", "7e-180", "620.0",
-            "COG1234@1|root,5ABC@1224|Proteobacteria",
-            "1224|Proteobacteria", "S",
-            "DUF874 family protein", "-",
-            "GO:0005524,GO:0006355", "-",
-            "-", "-", "-", "-", "-", "-", "-", "-", "-",
-            "DUF874",
-        ]),
-        # An enzyme with a description, preferred name, EC and a Pfam.
-        "\t".join([
-            "q2_g", "210007.2", "3e-51", "200.0",
-            "COG5678@1|root,COG5678@2|Bacteria",
-            "2|Bacteria", "E",
-            "some dehydrogenase", "thrA",
-            "GO:0004072", "1.1.1.3",
-            "ko:K12524", "-", "-", "-", "-", "-", "-", "-", "-", "-",
-            "DUF1523",
-        ]),
+        # DUF-only protein: one OG, one Pfam over four domain regions.
+        _table_row(
+            eggnog_mod.ANNOT_FIELDS,
+            query="hp26695_LPJIAC_00125",
+            seed_ortholog="85962.HP_0119",
+            evalue="1.32e-213", score="604.0",
+            eggNOG_OGs="DUF874@131567|A-1",
+            tax_ceiling="Prokaryota",
+            farthest_donor_lineage="1;131567;2",
+            COG_category="COG4636",
+            PFAMs="DUF874_144_191,DUF874_190_237,DUF874_236_461,DUF874_75_153",
+            annotation_confidence="------------h",
+        ),
+        # Two OGs, one GO, two distinct Pfams.
+        _table_row(
+            eggnog_mod.ANNOT_FIELDS,
+            query="hp26695_LPJIAC_00441",
+            seed_ortholog="85962.HP_0426",
+            evalue="0.0", score="1155.0",
+            eggNOG_OGs="DUF262@131567|QK-14,DUF1524@131567|C-2",
+            tax_ceiling="Prokaryota",
+            farthest_donor_lineage="1;131567;2",
+            COG_category="COG1479",
+            GOs="GO:0005515",
+            PFAMs="DUF1524_426_555,DUF262_13_235",
+            annotation_confidence="-h----------h",
+        ),
+        # Primary OG marked with *, preferred name, one Pfam.
+        _table_row(
+            eggnog_mod.ANNOT_FIELDS,
+            query="hp26695_LPJIAC_00511",
+            seed_ortholog="85962.HP_0488",
+            evalue="0.0", score="1820.0",
+            eggNOG_OGs="ddrB-ParB@2|A-1,DUF3519@131567|A-1*,DUF3519@209|B-2",
+            tax_ceiling="Prokaryota",
+            farthest_donor_lineage="1;131567;2",
+            COG_category="S",
+            Preferred_name="Hac",
+            PFAMs="DUF3519_196_308,DUF3519_885_956,ddrB-ParB_388_497",
+            annotation_confidence="l-----------h",
+        ),
     ]
     annot = tmp_path / "x.emapper.annotations"
     annot.write_text("\n".join(rows) + "\n", encoding="utf-8")
     pfam_names = {
-        "PF05637": {"id": "DUF874", "name": "DUF874 family", "type": "Domain"},
-        "PF07540": {"id": "DUF1523", "name": "DUF1523 family", "type": "Domain"},
+        "PF05637": {"id": "DUF874", "name": "DUF874 family"},
+        "PF01833": {"id": "DUF262", "name": "DUF262 family"},
+        "PF07540": {"id": "DUF1524", "name": "DUF1524 family"},
+        "PF12020": {"id": "DUF3519", "name": "DUF3519 family"},
     }
     idx = eggnog_mod.build_pfam_id_index(pfam_names)
     assert idx["DUF874"] == "PF05637"
     parsed = eggnog_mod.parse_emapper(annot, idx)
-    assert set(parsed) == {"q1_g", "q2_g"}
+    assert set(parsed) == {
+        "hp26695_LPJIAC_00125",
+        "hp26695_LPJIAC_00441",
+        "hp26695_LPJIAC_00511",
+    }
 
+    p1 = parsed["hp26695_LPJIAC_00125"]
+    assert p1[0]["kind"] == "og"
+    assert p1[0]["target_id"] == "DUF874"
+    pfam1 = [p for p in p1 if p["kind"] == "pfam"]
+    assert len(pfam1) == 1
+    assert pfam1[0]["target_id"] == "PF05637"
+
+    p2 = parsed["hp26695_LPJIAC_00441"]
+    assert [p["kind"] for p in p2].count("go") == 1
+    pfam2 = sorted(p["target_id"] for p in p2 if p["kind"] == "pfam")
+    assert pfam2 == ["PF01833", "PF07540"]
+
+    p3 = parsed["hp26695_LPJIAC_00511"]
+    # The primary (*) OG DUF3519 is chosen over the first ddrB-ParB, and the
+    # preferred name labels the term.
+    assert p3[0]["target_id"] == "DUF3519"
+    assert p3[0]["target_label"] == "Hac"
+
+
+def test_parse_emapper_v2_legacy(tmp_path: Path) -> None:
+    fields = [
+        "query", "seed_ortholog", "evalue", "score", "eggNOG_OGs",
+        "max_annot_lvl", "COG_category", "Description", "Preferred_name",
+        "GOs", "EC", "KEGG_ko", "KEGG_Pathway", "KEGG_Module",
+        "KEGG_Reaction", "KEGG_rclass", "BRITE", "KEGG_TC", "CAZy",
+        "BiGG_Reaction", "PFAMs",
+    ]
+    header = "\t".join(fields)
+    line = _table_row(
+        fields,
+        query="q1_g", seed_ortholog="210007.1",
+        evalue="7e-180", score="620.0",
+        eggNOG_OGs="COG1234@1|root,5ABC@1224|Proteobacteria",
+        max_annot_lvl="1224|Proteobacteria", COG_category="S",
+        Description="DUF874 family protein",
+        GOs="GO:0005524,GO:0006355",
+        PFAMs="DUF874",
+    )
+    annot = tmp_path / "x.emapper.annotations"
+    annot.write_text("#" + header + "\n" + line + "\n", encoding="utf-8")
+    pfam_names = {"PF05637": {"id": "DUF874", "name": "DUF874 family"}}
+    parsed = eggnog_mod.parse_emapper(
+        annot, eggnog_mod.build_pfam_id_index(pfam_names))
     q1 = parsed["q1_g"]
-    kinds_q1 = [p["kind"] for p in q1]
-    # The COG id (broad, stable) names the OG term, ahead of the fine OG.
     assert q1[0]["kind"] == "og"
     assert q1[0]["target_id"] == "COG1234"
-    assert kinds_q1.count("go") == 2
-    # The Pfam short name is mapped to its accession.
-    pfam_q1 = [p for p in q1 if p["kind"] == "pfam"]
-    assert pfam_q1[0]["target_id"] == "PF05637"
-    # E=7e-180 -> -log10(E)/200 ~ 0.896.
-    assert q1[0]["score"] == pytest.approx(0.896, abs=1e-2)
-
-    q2 = parsed["q2_g"]
-    ec_q2 = [p for p in q2 if p["kind"] == "ec"]
-    assert ec_q2[0]["target_id"] == "EC:1.1.1.3"
-    assert q2[0]["target_label"] == "some dehydrogenase"
+    assert q1[0]["target_label"] == "DUF874 family protein"
+    assert [p["kind"] for p in q1].count("go") == 2
+    assert [p for p in q1 if p["kind"] == "pfam"][0]["target_id"] == "PF05637"
 
 
 def test_eggnog_missing_binary(tmp_path: Path, monkeypatch) -> None:
