@@ -26,7 +26,8 @@ Keep a Changelog, and the project adheres to semantic versioning.
   the normal embed and search stages, each query's self-hit is removed so a
   protein cannot label itself, and the evidence is paired with the curated
   truth from the Swiss-Prot cross-reference index, reproducing the inference
-  feature distribution. The rank stage loads a configured model from
+  feature distribution. `server/build_sprot_dates.py` extracts each curated
+  entry's sequence-version date for the temporal split. The rank stage loads a configured model from
   `rank.ltr_model_path` (a relative path resolves against the dbdir) and uses
   its learned ranking in place of the rule fusion, falling back silently to
   group noisy-OR when the model is absent or unloadable;
