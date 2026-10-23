@@ -12,14 +12,14 @@ query workdir actually used).
 Preferred input is the Swiss-Prot flat file, which carries the sequence and
 its Pfam/EC/GO cross-references in one place:
 
-    python build_plm_reference.py \
+    python -u build_plm_reference.py \
         --dat  /db/.../uniprot_sprot.dat.gz \
         --out  /data/.../dbdir/plm_ref \
         --model esm2_t33_650M_UR50D --batch-size 16
 
 A FASTA plus a prebuilt cross-reference index is also accepted:
 
-    python build_plm_reference.py \
+    python -u build_plm_reference.py \
         --fasta /db/.../uniprot_sprot.fasta.gz \
         --xref  /data/.../dbdir/swissprot_xref.json \
         --out   /data/.../dbdir/plm_ref
@@ -27,7 +27,8 @@ A FASTA plus a prebuilt cross-reference index is also accepted:
 The run is sharded and resumable: each shard is written under
 ``<out>/_shards/`` and re-running skips completed shards. After all shards
 finish the final library files are written and the shards are removed unless
-``--keep-shards`` is given.
+``--keep-shards`` is given. Progress is logged for the flat-file scan and for
+every embedding block within a shard so long GPU runs never look stalled.
 """
 
 from __future__ import annotations
@@ -35,14 +36,15 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import time
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, Iterator, List, Tuple
 
 import numpy as np
 
 from pufprobe.embed.esm import ModelUnavailable, embed_items, load_esm_model
 from pufprobe.io_utils import read_fasta
-from pufprobe.logging_utils import get_logger
+from pufprobe.logging_utils import get_logger, setup_logging
 from pufprobe.search.idmapping import (
     _open_text,
     iter_sprot_records,
@@ -55,6 +57,11 @@ VECTORS = "plm_ref_vectors.npy"
 IDS = "plm_ref_ids.json"
 TERMS = "plm_ref_terms.json"
 MANIFEST = "plm_ref_manifest.json"
+
+# Log one progress line per PROGRESS_BLOCK proteins embedded; small enough to
+# surface activity on a GPU, large enough to avoid log spam.
+PROGRESS_BLOCK = 256
+SCAN_LOG_EVERY = 100_000
 
 
 def _iter_fasta_accessions(path: Path) -> Iterator[Tuple[str, str]]:
@@ -77,7 +84,14 @@ def _filter(
     """Sort and de-duplicate annotated records within the length window."""
     selected: List[Tuple[str, str, Dict[str, List[str]]]] = []
     seen = set()
+    scanned = 0
     for accession, sequence, terms in records:
+        scanned += 1
+        if scanned % SCAN_LOG_EVERY == 0:
+            logger.info(
+                "Scanning flat file: %d entries read, %d selected so far ...",
+                scanned, len(selected),
+            )
         if accession in seen or not terms:
             continue
         if not (min_len <= len(sequence) <= max_len):
@@ -85,8 +99,11 @@ def _filter(
         seen.add(accession)
         selected.append((accession, sequence, terms))
     selected.sort(key=lambda item: item[0])
+    logger.info("Flat-file scan complete: %d entries scanned, %d selected.",
+                scanned, len(selected))
     if limit and limit > 0:
         selected = selected[:limit]
+        logger.info("Limiting to the first %d selected proteins.", limit)
     return selected
 
 
@@ -111,6 +128,33 @@ def _normalise(matrix: np.ndarray) -> np.ndarray:
     return matrix / norms
 
 
+def _embed_shard(
+    model, alphabet, batch_converter, num_layers, device,
+    chunk: List[Tuple[str, str, Dict[str, List[str]]]],
+    shard_index: int, n_shards: int, batch_size: int,
+) -> Dict[str, np.ndarray]:
+    """Embed one shard in small blocks, logging progress for every block."""
+    collected: Dict[str, np.ndarray] = {}
+    total = len(chunk)
+    for start in range(0, total, PROGRESS_BLOCK):
+        sub = chunk[start : start + PROGRESS_BLOCK]
+        items = [(acc, seq) for acc, seq, _ in sub]
+        t0 = time.time()
+        vectors = embed_items(
+            model, alphabet, batch_converter, num_layers, device,
+            items, batch_size=batch_size,
+        )
+        collected.update(vectors)
+        done = min(start + PROGRESS_BLOCK, total)
+        elapsed = time.time() - t0
+        rate = len(items) / elapsed if elapsed > 0 else 0.0
+        logger.info(
+            "Shard %d/%d embedding: %d/%d proteins (%.0f prot/s this block).",
+            shard_index + 1, n_shards, done, total, rate,
+        )
+    return collected
+
+
 def build(
     out_dir: Path,
     selected: List[Tuple[str, str, Dict[str, List[str]]]],
@@ -128,29 +172,32 @@ def build(
     n_total = len(selected)
     n_shards = math.ceil(n_total / shard_size)
     logger.info(
-        "Selected %d annotated reference proteins -> %d shard(s) of up to %d (model=%s).",
-        n_total, n_shards, shard_size, model_name,
+        "Selected %d annotated reference proteins -> %d shard(s) of up to %d "
+        "(model=%s, source=%s).",
+        n_total, n_shards, shard_size, model_name, source,
     )
 
     # Load the checkpoint once and reuse it across shards.
+    logger.info("Loading ESM checkpoint '%s' (this can take a minute) ...", model_name)
     model, alphabet, batch_converter, device, num_layers = load_esm_model(
         model_name, cpu=cpu
     )
+    logger.info("ESM ready on device '%s'.", device)
 
+    run_started = time.time()
     for shard_index in range(n_shards):
         chunk = selected[shard_index * shard_size : (shard_index + 1) * shard_size]
         shard_path = shard_dir / f"shard_{shard_index:05d}.npz"
         if shard_path.exists():
             logger.info("Shard %d/%d already present; skipping.", shard_index + 1, n_shards)
             continue
-        items = [(acc, seq) for acc, seq, _ in chunk]
-        try:
-            vectors = embed_items(
-                model, alphabet, batch_converter, num_layers, device,
-                items, batch_size=batch_size,
-            )
-        except ModelUnavailable:
-            raise
+        shard_start = time.time()
+        vectors = _embed_shard(
+            model, alphabet, batch_converter, num_layers, device,
+            chunk, shard_index, n_shards, batch_size,
+        )
+        if not vectors:
+            raise SystemExit(f"Shard {shard_index} produced no embeddings; aborting.")
         ids = [acc for acc, _, _ in chunk if acc in vectors]
         if not ids:
             raise SystemExit(f"Shard {shard_index} produced no embeddings; aborting.")
@@ -161,9 +208,14 @@ def build(
             vectors=matrix.astype(np.float16),
             ids=np.asarray(ids, dtype=object),
         )
-        logger.info("Shard %d/%d written (%d proteins).", shard_index + 1, n_shards, len(ids))
+        logger.info(
+            "Shard %d/%d written (%d proteins, %.1f min elapsed).",
+            shard_index + 1, n_shards, len(ids),
+            (time.time() - shard_start) / 60.0,
+        )
 
     # Merge shards into the final library.
+    logger.info("Merging shards into the final library ...")
     all_ids: List[str] = []
     all_vectors: List[np.ndarray] = []
     for shard_index in range(n_shards):
@@ -201,13 +253,15 @@ def build(
         shard_dir.rmdir()
 
     logger.info(
-        "Reference library written to %s: %d proteins x %d dims (%.1f GB float16).",
+        "Reference library written to %s: %d proteins x %d dims (%.1f GB float16), "
+        "total %.1f min.",
         out_dir, vectors.shape[0], vectors.shape[1],
-        vectors.nbytes / 1e9,
+        vectors.nbytes / 1e9, (time.time() - run_started) / 60.0,
     )
 
 
 def main() -> None:
+    setup_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dat", type=Path, default=None,
                         help="UniProt Swiss-Prot flat file (.dat or .dat.gz). Preferred.")
@@ -220,7 +274,7 @@ def main() -> None:
     parser.add_argument("--model", default="esm2_t33_650M_UR50D",
                         help="ESM checkpoint; must match the query embed model.")
     parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--shard-size", type=int, default=20000,
+    parser.add_argument("--shard-size", type=int, default=10000,
                         help="Proteins per resumable shard.")
     parser.add_argument("--cpu", action="store_true",
                         help="Force CPU inference (slow).")

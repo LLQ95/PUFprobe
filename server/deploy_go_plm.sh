@@ -27,7 +27,7 @@ ENV_NAME="${ENV_NAME:-pufprobe}"
 OBO_DEFAULT="/db/student/metagenome/eggnog_db_v7/go-basic.obo"
 CRUN=(conda run --no-capture-output -n "$ENV_NAME")
 SMOKE_LIMIT="${SMOKE_LIMIT:-1000}"
-SHARD_SIZE="${SHARD_SIZE:-20000}"
+SHARD_SIZE="${SHARD_SIZE:-10000}"
 
 log() { echo "[deploy $(date +%H:%M:%S)] $*"; }
 die() { echo "[deploy ERROR] $*" >&2; exit 1; }
@@ -136,7 +136,7 @@ build_library() {
               --shard-size "$SHARD_SIZE" --batch-size 16)
   if [ "$limit" != "0" ]; then args+=(--limit "$limit"); fi
   if [ "${USE_CPU:-0}" = "1" ]; then args+=(--cpu); fi
-  "${CRUN[@]}" python "$REPO/server/build_plm_reference.py" "${args[@]}"
+  PYTHONUNBUFFERED=1 "${CRUN[@]}" python -u "$REPO/server/build_plm_reference.py" "${args[@]}"
   ls -la "$out"
 }
 
