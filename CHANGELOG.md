@@ -21,10 +21,15 @@ Keep a Changelog, and the project adheres to semantic versioning.
   order and term priors are stored in one pickle. Evaluation reports
   protein-centric Fmax and its threshold, micro-average AUPR, and semantic
   distance Smin when term information content is supplied.
-  `server/train_ltr.py` is the training CLI. The rank stage loads a configured
-  model from `rank.ltr_model_path` (a relative path resolves against the dbdir)
-  and uses its learned ranking in place of the rule fusion, falling back
-  silently to group noisy-OR when the model is absent or unloadable;
+  `server/train_ltr.py` is the training CLI. `server/build_ltr_trainset.py`
+  builds the annotated training set: a FASTA of curated proteins is run through
+  the normal embed and search stages, each query's self-hit is removed so a
+  protein cannot label itself, and the evidence is paired with the curated
+  truth from the Swiss-Prot cross-reference index, reproducing the inference
+  feature distribution. The rank stage loads a configured model from
+  `rank.ltr_model_path` (a relative path resolves against the dbdir) and uses
+  its learned ranking in place of the rule fusion, falling back silently to
+  group noisy-OR when the model is absent or unloadable;
   `calibration.json` records the active backend.
 - A protein-language-model nearest-neighbour evidence channel
   (`search --channels plm_neighbor`). Representative ESM-2 embeddings are

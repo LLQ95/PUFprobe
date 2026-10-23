@@ -168,6 +168,50 @@ def _cds(locus: str) -> CDSRecord:
     )
 
 
+def _load_trainset_module():
+    import importlib.util
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "server" / "build_ltr_trainset.py"
+    spec = importlib.util.spec_from_file_location("build_ltr_trainset", script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_trainset_parse_accession():
+    mod = _load_trainset_module()
+    assert mod.parse_accession("sp|P12345|NAME some desc") == "P12345"
+    assert mod.parse_accession("tr|Q00000|NAME") == "Q00000"
+    assert mod.parse_accession("P99999 a plain header") == "P99999"
+
+
+def test_trainset_remove_self_hits():
+    mod = _load_trainset_module()
+    evidence = {
+        "holdout@P12345": [
+            {"target_id": "sp|P12345|NAME", "score": 1.0},
+            {"target_id": "sp|P99999|OTHER", "score": 0.5},
+            {"target_id": "PF00001", "score": 0.8},
+        ]
+    }
+    cleaned, removed = mod.remove_self_hits(evidence)
+    assert removed == 1
+    targets = [r["target_id"] for r in cleaned["holdout@P12345"]]
+    assert targets == ["sp|P99999|OTHER", "PF00001"]
+
+
+def test_trainset_build_labels_and_dates():
+    mod = _load_trainset_module()
+    proteins = [("P12345", "M" * 10)]
+    xref = {"P12345": {"GO": ["GO:1"], "EC": ["1.1.1.1"],
+                       "Pfam": ["PF00001"], "COG": ["COG0001"]}}
+    labels = mod.build_labels(proteins, xref)
+    assert labels["holdout@P12345"]["Pfam"] == ["PF00001"]
+    dates = mod.align_dates(proteins, {"P12345": "2020-01-01"})
+    assert dates["holdout@P12345"] == "2020-01-01"
+
+
 def test_fuse_proteins_uses_ltr_ranker():
     evidence_map, labels = _synthetic_problem(4)
     rows, groups = ltr.build_dataset(evidence_map, labels)
