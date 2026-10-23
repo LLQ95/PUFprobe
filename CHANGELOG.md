@@ -7,6 +7,25 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ### Added
 
+- A learning-to-rank fusion framework (`pufprobe.rank.ltr`). Each
+  `(protein, candidate term)` pair is described by a fixed feature vector:
+  the best raw score from every channel, the reliability-discounted strength
+  of every independent evidence group, cross-channel agreement and coverage
+  statistics, and meta features (mean coverage, a capped -log10 E-value signal,
+  training-derived term family size and taxonomic breadth, and protein pLDDT).
+  Rows are grouped by protein and split by a CAFA-style temporal cut (dates
+  when provided, otherwise a seeded group split that never leaks a protein
+  across sets). A LightGBM LambdaRank model is used when lightgbm is
+  installed, with a sklearn gradient-boosting fallback and a dependency-free
+  numpy logistic ranker so the framework always runs; the model, its feature
+  order and term priors are stored in one pickle. Evaluation reports
+  protein-centric Fmax and its threshold, micro-average AUPR, and semantic
+  distance Smin when term information content is supplied.
+  `server/train_ltr.py` is the training CLI. The rank stage loads a configured
+  model from `rank.ltr_model_path` (a relative path resolves against the dbdir)
+  and uses its learned ranking in place of the rule fusion, falling back
+  silently to group noisy-OR when the model is absent or unloadable;
+  `calibration.json` records the active backend.
 - A protein-language-model nearest-neighbour evidence channel
   (`search --channels plm_neighbor`). Representative ESM-2 embeddings are
   compared against an annotated reference library (`<dbdir>/plm_ref`); the

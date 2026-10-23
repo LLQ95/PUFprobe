@@ -106,8 +106,32 @@ def run(
             n_go_propagated,
         )
 
+    # Learning-to-rank fusion (optional). Configured by rank.ltr_model_path;
+    # a relative path is resolved against the database directory. Any failure
+    # falls back to rule fusion without interrupting the run.
+    ltr_model = None
+    ltr_path_cfg = str(config["rank"].get("ltr_model_path", "") or "")
+    if ltr_path_cfg:
+        ltr_path = Path(ltr_path_cfg)
+        if not ltr_path.is_absolute() and dbdir is not None:
+            ltr_path = dbdir / ltr_path
+        if ltr_path.exists():
+            try:
+                from pufprobe.rank.ltr import LTRRanker
+                ltr_model = LTRRanker.load(str(ltr_path))
+                log.info("LTR fusion model loaded: %s (backend=%s)",
+                         ltr_path, ltr_model.backend)
+            except Exception as exc:  # pragma: no cover - defensive
+                log.warning("could not load LTR model %s (%s); using rule fusion.",
+                            ltr_path, exc)
+        else:
+            log.warning("configured LTR model not found: %s; using rule fusion.",
+                        ltr_path)
+
     model, model_note = load_weights_model(weights)
-    if model is None:
+    if ltr_model is not None:
+        fusion_note = f"fusion: learned LTR ranker ({ltr_model.backend}) from {ltr_path_cfg}"
+    elif model is None:
         method = config["rank"].get("fusion_method", "group_noisy_or")
         fusion_note = f"fusion: {method} over independent evidence groups (rule-based, no learned model)"
     else:
@@ -116,6 +140,7 @@ def run(
         records, evidence_map, config,
         weights_model=model, pfam_names=pfam_names,
         go_propagated=go_propagated,
+        ltr_model=ltr_model,
     )
 
     # Calibration: no held-out calibration set is produced by the upstream
@@ -147,6 +172,7 @@ def run(
         **cal_meta,
         "fusion": fusion_note,
         "fusion_method": config["rank"].get("fusion_method", "group_noisy_or"),
+        "ltr_backend": getattr(ltr_model, "backend", None),
         "high_confidence": config["rank"]["high_confidence"],
         "single_group_cap": config["rank"].get("single_group_cap"),
         "require_independent_groups": config["rank"]["require_independent_groups"],

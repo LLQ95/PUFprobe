@@ -116,6 +116,11 @@ DEFAULTS: Dict[str, Any] = {
         # are capped at single_group_cap (medium confidence, manual review).
         # "weighted_sum" is the previous linear sum kept for comparison.
         "fusion_method": "group_noisy_or",
+        # Optional learning-to-rank fusion model trained with
+        # server/train_ltr.py. When a valid model path is given its learned
+        # ranking scores replace the rule fusion above; an empty value or an
+        # unloadable model falls back to fusion_method without error.
+        "ltr_model_path": "",
         "single_group_cap": 0.60,
         # A direct group only counts toward require_independent_groups when its
         # reliability-discounted strength reaches this gate. Weaker groups still

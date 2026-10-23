@@ -301,6 +301,31 @@ def _rule_fusion(
     return fused, rationale
 
 
+def _ltr_score(
+    ltr_model: Any,
+    gevs: List[Evidence],
+    term_id: str,
+    rank_cfg: Dict[str, Any],
+    protein_plddt: float = 0.0,
+) -> float:
+    """Score one candidate term with a trained learning-to-rank model.
+
+    Imported lazily to avoid a circular import (the ltr module itself imports
+    term classification and group constants from this module).
+    """
+    from pufprobe.rank import ltr
+
+    reliability = rank_cfg.get("channel_reliability") or ltr.DEFAULT_RELIABILITY
+    x = ltr.candidate_feature_vector(
+        gevs,
+        reliability,
+        term_id,
+        protein_plddt=protein_plddt,
+        term_stats=getattr(ltr_model, "term_stats", None),
+    )
+    return float(ltr_model.score(x.reshape(1, -1))[0])
+
+
 def fuse_proteins(
     records: List[CDSRecord],
     evidence_map: Dict[str, List[Evidence]],
@@ -308,6 +333,8 @@ def fuse_proteins(
     weights_model: Any = None,
     pfam_names: Optional[Dict[str, Dict[str, str]]] = None,
     go_propagated: bool = False,
+    ltr_model: Any = None,
+    protein_meta: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> List[ProteinPrediction]:
     """Fuse evidence for every CDS record into ranked terms.
 
@@ -341,6 +368,31 @@ def fuse_proteins(
             for ev in gevs:
                 ch = ev.channel.value
                 best_per_channel[ch] = max(best_per_channel.get(ch, ev.score), ev.score)
+
+            if ltr_model is not None:
+                try:
+                    plddt = float((protein_meta or {}).get(rec.key, {}).get("plddt", 0.0))
+                    raw = _ltr_score(ltr_model, gevs, tid, rank_cfg, plddt)
+                    raw = min(max(raw, 0.0), 1.0)
+                    rationale = (
+                        f"score: learned LTR ranker "
+                        f"({getattr(ltr_model, 'backend', 'ltr')})"
+                    )
+                except Exception as exc:  # pragma: no cover - defensive
+                    log.warning("LTR fusion failed (%s); falling back to rule fusion.", exc)
+                else:
+                    terms.append(
+                        TermPrediction(
+                            term_type=ttype,
+                            term_id=tid,
+                            term_name=_term_label(gevs, ttype, tid, pfam_names),
+                            raw_score=raw,
+                            confidence=raw,
+                            evidence=list(gevs),
+                            rationale=rationale,
+                        )
+                    )
+                    continue
 
             if weights_model is not None:
                 try:
