@@ -71,6 +71,10 @@ DEFAULTS: Dict[str, Any] = {
         # Independent hhblits searches run concurrently; the --threads budget
         # is split across them. 1 keeps the serial default.
         "hhblits_jobs": 1,
+        # Per-query wall-clock limit in seconds. A query that does not finish
+        # (e.g. an iteration that builds an unbounded MSA) is killed and
+        # skipped rather than stalling the whole channel.
+        "hhblits_query_timeout": 300,
         # eggNOG-mapper annotates the whole representative fasta in one call.
         # data_dir is left to emapper's default when empty; search_mode is the
         # emapper search engine (diamond, mmseqs or hmmer). emapper_path lets

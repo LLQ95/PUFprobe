@@ -47,6 +47,7 @@ def run_hhblits_search(
     iterations: int = 2,
     threads: int = 1,
     jobs: int = 1,
+    query_timeout: int = 300,
 ) -> Tuple[Dict[str, List[Evidence]], Optional[Path]]:
     info = externals.hhblits()
     if not info.available:
@@ -88,11 +89,19 @@ def run_hhblits_search(
                "-n", str(iterations), "-o", str(out_hhr),
                "-cpu", str(cpu_per_worker)]
         try:
-            completed = subprocess.run(cmd, capture_output=True, text=True)
+            completed = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=query_timeout
+            )
             if completed.returncode != 0 or not out_hhr.exists():
                 logger.warning("hhblits failed for %s (%s); skipping query.",
                                query_key, completed.stderr.strip()[:200])
                 return query_key, []
+        except subprocess.TimeoutExpired:
+            logger.warning("hhblits timed out for %s after %ss; skipping query.",
+                           query_key, query_timeout)
+            if out_hhr.exists():
+                out_hhr.unlink()
+            return query_key, []
         except (subprocess.SubprocessError, OSError) as exc:
             logger.warning("hhblits error for %s (%s); skipping query.", query_key, exc)
             return query_key, []

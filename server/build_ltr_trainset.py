@@ -182,6 +182,8 @@ def main() -> int:
     parser.add_argument("--hhblits-jobs", type=int, default=0,
                         help="Concurrent independent hhblits searches. 0 runs "
                              "one job per thread (recommended on a many-core host).")
+    parser.add_argument("--hhblits-timeout", type=int, default=300,
+                        help="Per-query hhblits wall-clock limit in seconds.")
     parser.add_argument("--dates", type=Path, default=None,
                         help="accession -> ISO date, copied for temporal split.")
     parser.add_argument("--cpu", action="store_true",
@@ -214,6 +216,7 @@ def main() -> int:
     # -cpu=$threads invocation (a single query scales sublinearly).
     hh_jobs = args.hhblits_jobs if args.hhblits_jobs > 0 else max(1, args.threads)
     config["search"]["hhblits_jobs"] = hh_jobs
+    config["search"]["hhblits_query_timeout"] = args.hhblits_timeout
 
     from pufprobe.embed.pipeline import run as embed_run
     if workdir.is_complete("embed") and workdir.path("cluster", "families.json").exists():

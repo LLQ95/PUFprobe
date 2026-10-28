@@ -97,6 +97,7 @@ def run(
                 iterations=int(search_cfg["hhblits_iterations"]),
                 threads=int(workdir.threads),
                 jobs=int(search_cfg.get("hhblits_jobs", 1)),
+                query_timeout=int(search_cfg.get("hhblits_query_timeout", 300)),
             )
         elif channel == "eggnog":
             evidence, _ = eggnog_channel.run_eggnog_search(

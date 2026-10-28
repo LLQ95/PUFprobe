@@ -28,7 +28,8 @@ Keep a Changelog, and the project adheres to semantic versioning.
   truth from the Swiss-Prot cross-reference index, reproducing the inference
   feature distribution. The trainset build parallelizes the independent
   hhblits queries (one single-threaded search per thread by default rather
-  than one serial search) and reuses completed embed/search stages on rerun.
+  than one serial search), kills any query that exceeds the per-query
+  wall-clock timeout, and reuses completed embed/search stages on rerun.
   `server/build_sprot_dates.py` extracts each curated entry's sequence-version
   date for the temporal split. The rank stage loads a configured model from
   `rank.ltr_model_path` (a relative path resolves against the dbdir) and uses

@@ -253,7 +253,7 @@ def test_hhblits_concurrent_jobs(tmp_path: Path, monkeypatch) -> None:
     class FakeCompleted:
         returncode = 0
 
-    def fake_run(cmd, capture_output=True, text=True) -> FakeCompleted:
+    def fake_run(cmd, capture_output=True, text=True, timeout=None) -> FakeCompleted:
         out = Path(cmd[cmd.index("-o") + 1])
         with lock:
             active["n"] += 1
