@@ -29,7 +29,9 @@ Keep a Changelog, and the project adheres to semantic versioning.
   feature distribution. The trainset build parallelizes the independent
   hhblits queries (one single-threaded search per thread by default rather
   than one serial search), kills any query that exceeds the per-query
-  wall-clock timeout, and reuses completed embed/search stages on rerun.
+  wall-clock timeout, bounds each MSA (maxseq, maxfilt, Neff and memory) so
+  the large homolog sets of curated proteins do not build multi-GB alignments,
+  and reuses completed embed/search stages on rerun.
   `server/build_sprot_dates.py` extracts each curated entry's sequence-version
   date for the temporal split. The rank stage loads a configured model from
   `rank.ltr_model_path` (a relative path resolves against the dbdir) and uses

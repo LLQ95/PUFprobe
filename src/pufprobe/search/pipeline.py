@@ -98,6 +98,10 @@ def run(
                 threads=int(workdir.threads),
                 jobs=int(search_cfg.get("hhblits_jobs", 1)),
                 query_timeout=int(search_cfg.get("hhblits_query_timeout", 300)),
+                maxseq=int(search_cfg.get("hhblits_maxseq", 100_000)),
+                maxfilt=int(search_cfg.get("hhblits_maxfilt", 20_000)),
+                neffmax=float(search_cfg.get("hhblits_neffmax", 8.0)),
+                maxmem=float(search_cfg.get("hhblits_maxmem", 16.0)),
             )
         elif channel == "eggnog":
             evidence, _ = eggnog_channel.run_eggnog_search(

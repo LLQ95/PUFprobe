@@ -48,6 +48,10 @@ def run_hhblits_search(
     threads: int = 1,
     jobs: int = 1,
     query_timeout: int = 300,
+    maxseq: int = 100_000,
+    maxfilt: int = 20_000,
+    neffmax: float = 8.0,
+    maxmem: float = 16.0,
 ) -> Tuple[Dict[str, List[Evidence]], Optional[Path]]:
     info = externals.hhblits()
     if not info.available:
@@ -85,9 +89,18 @@ def run_hhblits_search(
         q_fasta = tmp / f"{safe}.faa"
         out_hhr = tmp / f"{safe}.hhr"
         write_fasta(q_fasta, [(query_key, seq)])
+        # Bound the MSA. Curated Swiss-Prot proteins have very large homolog
+        # sets in UniRef30; the default maxseq (1e6) builds a multi-GB MSA and
+        # makes each query run for minutes. Remote-homology sensitivity is
+        # governed by MSA diversity (Neff), not raw sequence count, so a
+        # capped maxseq/neffmax keeps the profile while cutting the work.
         cmd = [exe, "-i", str(q_fasta), "-d", str(db_path),
                "-n", str(iterations), "-o", str(out_hhr),
-               "-cpu", str(cpu_per_worker)]
+               "-cpu", str(cpu_per_worker),
+               "-maxseq", str(maxseq),
+               "-maxfilt", str(maxfilt),
+               "-neffmax", str(neffmax),
+               "-maxmem", str(maxmem)]
         try:
             completed = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=query_timeout

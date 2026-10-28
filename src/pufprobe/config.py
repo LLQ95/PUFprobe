@@ -75,6 +75,14 @@ DEFAULTS: Dict[str, Any] = {
         # (e.g. an iteration that builds an unbounded MSA) is killed and
         # skipped rather than stalling the whole channel.
         "hhblits_query_timeout": 300,
+        # MSA bounds. Curated proteins have huge homolog sets in UniRef30; the
+        # default maxseq (1e6) builds a multi-GB MSA per query. Capping the
+        # sequence count, prefilter count, Neff and memory keeps the profile
+        # quality while cutting runtime and memory by an order of magnitude.
+        "hhblits_maxseq": 100_000,
+        "hhblits_maxfilt": 20_000,
+        "hhblits_neffmax": 8.0,
+        "hhblits_maxmem": 16.0,
         # eggNOG-mapper annotates the whole representative fasta in one call.
         # data_dir is left to emapper's default when empty; search_mode is the
         # emapper search engine (diamond, mmseqs or hmmer). emapper_path lets
