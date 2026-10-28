@@ -179,6 +179,9 @@ def main() -> int:
     parser.add_argument("--model", default="esm2_t33_650M_UR50D",
                         help="Embedding model; should match the deployed model.")
     parser.add_argument("--threads", type=int, default=96)
+    parser.add_argument("--hhblits-jobs", type=int, default=0,
+                        help="Concurrent independent hhblits searches. 0 runs "
+                             "one job per thread (recommended on a many-core host).")
     parser.add_argument("--dates", type=Path, default=None,
                         help="accession -> ISO date, copied for temporal split.")
     parser.add_argument("--cpu", action="store_true",
@@ -206,12 +209,24 @@ def main() -> int:
     # ranking group; 0.95 identity only merges near-identical entries.
     config["cluster"]["identity"] = 0.95
 
+    # Parallelize the independent hhblits queries. Default to one single-thread
+    # search per thread, which uses a many-core host far better than one
+    # -cpu=$threads invocation (a single query scales sublinearly).
+    hh_jobs = args.hhblits_jobs if args.hhblits_jobs > 0 else max(1, args.threads)
+    config["search"]["hhblits_jobs"] = hh_jobs
+
     from pufprobe.embed.pipeline import run as embed_run
-    embed_run(workdir, config, model=args.model)
+    if workdir.is_complete("embed") and workdir.path("cluster", "families.json").exists():
+        logger.info("embed/cluster already complete in %s; reusing it.", workdir.root)
+    else:
+        embed_run(workdir, config, model=args.model)
 
     channels = [c.strip().lower() for c in args.channels.split(",") if c.strip()]
     from pufprobe.search.pipeline import run as search_run
-    search_run(workdir, config, channels=channels, dbdir=args.dbdir)
+    if workdir.is_complete("search") and workdir.path("search", "search_evidence.json").exists():
+        logger.info("search already complete; reusing its evidence.")
+    else:
+        search_run(workdir, config, channels=channels, dbdir=args.dbdir)
 
     raw_path = workdir.path("search", "search_evidence.json")
     evidence = load_raw_evidence(raw_path)
