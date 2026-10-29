@@ -33,7 +33,10 @@ Keep a Changelog, and the project adheres to semantic versioning.
   the large homolog sets of curated proteins do not build multi-GB alignments,
   and reuses completed embed/search stages on rerun.
   `server/build_sprot_dates.py` extracts each curated entry's sequence-version
-  date for the temporal split. The rank stage loads a configured model from
+  date for the temporal split. `server/add_eggnog_channel.py` adds the eggnog
+  channel to an already-built dataset by invoking emapper from its own conda
+  environment and merging the evidence, so a skipped channel does not force
+  rerunning the expensive hhblits searches. The rank stage loads a configured model from
   `rank.ltr_model_path` (a relative path resolves against the dbdir) and uses
   its learned ranking in place of the rule fusion, falling back silently to
   group noisy-OR when the model is absent or unloadable;
