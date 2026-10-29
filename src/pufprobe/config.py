@@ -83,6 +83,10 @@ DEFAULTS: Dict[str, Any] = {
         "hhblits_maxfilt": 20_000,
         "hhblits_neffmax": 8.0,
         "hhblits_maxmem": 16.0,
+        # Minimum posterior probability (percent) for a reported hit. The
+        # hhblits default of 20 lists many marginal hits with E-values above 1;
+        # 90 keeps the high-confidence remote homologs.
+        "hhblits_min_prob": 90.0,
         # eggNOG-mapper annotates the whole representative fasta in one call.
         # data_dir is left to emapper's default when empty; search_mode is the
         # emapper search engine (diamond, mmseqs or hmmer). emapper_path lets
