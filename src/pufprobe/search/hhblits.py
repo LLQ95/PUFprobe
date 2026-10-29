@@ -52,6 +52,7 @@ def run_hhblits_search(
     maxfilt: int = 20_000,
     neffmax: float = 8.0,
     maxmem: float = 16.0,
+    min_prob: float = 90.0,
 ) -> Tuple[Dict[str, List[Evidence]], Optional[Path]]:
     info = externals.hhblits()
     if not info.available:
@@ -94,9 +95,15 @@ def run_hhblits_search(
         # makes each query run for minutes. Remote-homology sensitivity is
         # governed by MSA diversity (Neff), not raw sequence count, so a
         # capped maxseq/neffmax keeps the profile while cutting the work.
+        # -p keeps only hits whose posterior probability is at least the
+        # threshold. The hhblits default (20) reports many marginal hits with
+        # E-values far above 1; a 90 threshold retains the high-confidence
+        # remote homologs and drops the noise that otherwise inflates the
+        # candidate term list.
         cmd = [exe, "-i", str(q_fasta), "-d", str(db_path),
                "-n", str(iterations), "-o", str(out_hhr),
                "-cpu", str(cpu_per_worker),
+               "-p", str(float(min_prob)),
                "-maxseq", str(maxseq),
                "-maxfilt", str(maxfilt),
                "-neffmax", str(neffmax),
