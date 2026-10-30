@@ -25,6 +25,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from pufprobe.embed.whitening import (  # noqa: E402
+    apply_whitening,
+    l2_normalize,
+    whitening_matrix,
+)
 from pufprobe.logging_utils import setup_logging, get_logger  # noqa: E402
 from pufprobe.search.plm_neighbor import (  # noqa: E402
     load_reference,
@@ -32,24 +37,6 @@ from pufprobe.search.plm_neighbor import (  # noqa: E402
 )
 
 logger = get_logger("verify_whitening")
-
-
-def whitening_matrix(matrix: np.ndarray):
-    """Return (mean, W) where W whitens the centered embeddings."""
-    mean = matrix.mean(axis=0)
-    centered = matrix - mean
-    # The covariance is a 1280x1280 matrix regardless of the library size.
-    cov = (centered.T @ centered) / max(1, matrix.shape[0] - 1)
-    eigvals, eigvecs = np.linalg.eigh(cov)
-    # Clamp tiny eigenvalues for numerical stability, then build S^-1/2.
-    eigvals = np.maximum(eigvals, 1e-8)
-    inv_sqrt = eigvecs @ np.diag(1.0 / np.sqrt(eigvals)) @ eigvecs.T
-    return mean, inv_sqrt.astype(np.float32)
-
-
-def l2_normalize(matrix: np.ndarray) -> np.ndarray:
-    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-    return matrix / np.maximum(norms, 1e-8)
 
 
 def report(lib_vectors: np.ndarray, query: np.ndarray, lib, label: str) -> None:
@@ -79,7 +66,7 @@ def main() -> int:
     lib = load_reference(args.ref_dir)
     raw = np.asarray(lib.vectors, dtype=np.float32)
     mean, whiten = whitening_matrix(raw)
-    white = l2_normalize((raw - mean) @ whiten)
+    white = apply_whitening(raw, mean, whiten)
 
     global _query_pfams
     for key in args.queries:
@@ -88,7 +75,7 @@ def main() -> int:
         query = load_query_vectors(args.embeddings, [key])[key]
         print("=== %s (Pfam %s) ===" % (key, ",".join(_query_pfams) or "-"))
         report(raw, query, lib, "raw")
-        query_white = l2_normalize(((query - mean) @ whiten).reshape(1, -1))[0]
+        query_white = apply_whitening(query, mean, whiten)
         report(white, query_white, lib, "whitened")
         print()
     return 0
