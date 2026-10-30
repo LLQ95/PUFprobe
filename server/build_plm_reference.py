@@ -43,6 +43,7 @@ from typing import Dict, Iterator, List, Tuple
 import numpy as np
 
 from pufprobe.embed.esm import ModelUnavailable, embed_items, load_esm_model
+from pufprobe.embed.whitening import apply_whitening, whitening_matrix
 from pufprobe.io_utils import read_fasta
 from pufprobe.logging_utils import get_logger, setup_logging
 from pufprobe.search.idmapping import (
@@ -57,6 +58,8 @@ VECTORS = "plm_ref_vectors.npy"
 IDS = "plm_ref_ids.json"
 TERMS = "plm_ref_terms.json"
 MANIFEST = "plm_ref_manifest.json"
+WHITEN_MEAN = "plm_ref_whiten_mean.npy"
+WHITEN_W = "plm_ref_whiten_w.npy"
 
 # Log one progress line per PROGRESS_BLOCK proteins embedded; small enough to
 # surface activity on a GPU, large enough to avoid log spam.
@@ -164,6 +167,7 @@ def build(
     shard_size: int,
     cpu: bool,
     keep_shards: bool,
+    whiten: bool = True,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     shard_dir = out_dir / "_shards"
@@ -227,8 +231,19 @@ def build(
         all_vectors.append(shard_vectors)
 
     terms_by_acc = {acc: terms for acc, _, terms in selected}
-    vectors = np.concatenate(all_vectors, axis=0).astype(np.float16)
+    raw_vectors = np.concatenate(all_vectors, axis=0).astype(np.float32)
     terms = {acc: terms_by_acc[acc] for acc in all_ids if acc in terms_by_acc}
+
+    whiten_mean = None
+    whiten_w = None
+    if whiten:
+        logger.info("Estimating whitening transform on %d embeddings ...", raw_vectors.shape[0])
+        whiten_mean, whiten_w = whitening_matrix(raw_vectors)
+        vectors = apply_whitening(raw_vectors, whiten_mean, whiten_w).astype(np.float16)
+        np.save(out_dir / WHITEN_MEAN, whiten_mean)
+        np.save(out_dir / WHITEN_W, whiten_w)
+    else:
+        vectors = raw_vectors.astype(np.float16)
 
     np.save(out_dir / VECTORS, vectors)
     with (out_dir / IDS).open("w", encoding="utf-8") as handle:
@@ -239,6 +254,7 @@ def build(
         "model": model_name,
         "pooling": "residue_mean",
         "normalized": True,
+        "whitened": bool(whiten),
         "dim": int(vectors.shape[1]),
         "n": int(vectors.shape[0]),
         "n_with_terms": int(len(terms)),
@@ -285,6 +301,10 @@ def main() -> None:
                         help="Use only the first N selected proteins (for testing).")
     parser.add_argument("--keep-shards", action="store_true",
                         help="Keep intermediate shard files after merging.")
+    parser.add_argument("--whiten", action="store_true", default=True,
+                        help="Whiten the embeddings before writing (default).")
+    parser.add_argument("--no-whiten", dest="whiten", action="store_false",
+                        help="Keep the raw anisotropic embeddings.")
     args = parser.parse_args()
 
     if args.dat is not None:
@@ -317,6 +337,7 @@ def main() -> None:
         shard_size=args.shard_size,
         cpu=args.cpu,
         keep_shards=args.keep_shards,
+        whiten=args.whiten,
     )
 
 
