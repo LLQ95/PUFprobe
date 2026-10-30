@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from pufprobe.embed.whitening import apply_whitening
 from pufprobe.io_utils import read_fasta
 from pufprobe.logging_utils import get_logger
 from pufprobe.models import Evidence, EvidenceChannel
@@ -47,6 +48,8 @@ REF_VECTORS = "plm_ref_vectors.npy"
 REF_IDS = "plm_ref_ids.json"
 REF_TERMS = "plm_ref_terms.json"
 REF_MANIFEST = "plm_ref_manifest.json"
+REF_WHITEN_MEAN = "plm_ref_whiten_mean.npy"
+REF_WHITEN_W = "plm_ref_whiten_w.npy"
 
 DEFAULT_TOP_K = 20
 DEFAULT_COS_FLOOR = 0.50
@@ -67,10 +70,16 @@ class ReferenceLibrary:
     ids: List[str]
     terms: Dict[str, Dict[str, List[str]]]
     manifest: Dict[str, Any]
+    whiten_mean: Optional[np.ndarray] = None
+    whiten_w: Optional[np.ndarray] = None
 
     @property
     def model(self) -> str:
         return str(self.manifest.get("model", ""))
+
+    @property
+    def is_whitened(self) -> bool:
+        return bool(self.manifest.get("whitened", False))
 
 
 def _l2_normalize(vectors: np.ndarray, eps: float = 1e-8) -> np.ndarray:
@@ -112,11 +121,29 @@ def load_reference(ref_dir: Optional[Path]) -> Optional[ReferenceLibrary]:
             f"{vectors.shape[0]} vectors in {ref_dir}"
         )
     vectors = _l2_normalize(np.asarray(vectors, dtype=np.float32))
+
+    whiten_mean = None
+    whiten_w = None
+    mean_path = ref_dir / REF_WHITEN_MEAN
+    w_path = ref_dir / REF_WHITEN_W
+    if manifest.get("whitened", False):
+        if not (mean_path.exists() and w_path.exists()):
+            raise ValueError(
+                "pLM reference library is marked whitened but missing "
+                f"{REF_WHITEN_MEAN} or {REF_WHITEN_W} in {ref_dir}"
+            )
+        whiten_mean = np.load(mean_path)
+        whiten_w = np.load(w_path)
+
     logger.info(
-        "pLM reference library loaded: %d proteins x %d dims (model=%s).",
+        "pLM reference library loaded: %d proteins x %d dims (model=%s, whitened=%s).",
         vectors.shape[0], vectors.shape[1], manifest.get("model", "?"),
+        manifest.get("whitened", False),
     )
-    return ReferenceLibrary(vectors=vectors, ids=ids, terms=terms, manifest=manifest)
+    return ReferenceLibrary(
+        vectors=vectors, ids=ids, terms=terms, manifest=manifest,
+        whiten_mean=whiten_mean, whiten_w=whiten_w,
+    )
 
 
 def load_query_vectors(
@@ -291,6 +318,12 @@ def run_plm_neighbor_search(
         return {}, None
 
     query_matrix = np.stack([query_vectors[key] for key in keys])
+    if library.is_whitened:
+        if library.whiten_mean is None or library.whiten_w is None:
+            raise ValueError("Whitened library did not provide the transform parameters.")
+        # Apply the same transform used to produce the reference vectors.
+        query_matrix = apply_whitening(
+            query_matrix, library.whiten_mean, library.whiten_w)
     top_hits = _batch_topk(library.vectors, query_matrix, keys, top_k)
 
     evidence: Dict[str, List[Evidence]] = {}
