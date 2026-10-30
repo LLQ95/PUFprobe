@@ -185,13 +185,16 @@ def vote_terms(
     cos_min: float = DEFAULT_COS_MIN,
     min_term_score: float = DEFAULT_MIN_TERM_SCORE,
     min_voters: int = DEFAULT_MIN_VOTERS,
+    self_accession: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Aggregate neighbour annotations into scored term candidates.
 
     Terms are scored by noisy-OR over the ramped cosine weights of neighbours
     that carry them. Only neighbours at or above ``cos_min`` count, and a term
     needs at least ``min_voters`` supporting neighbours and a score at or above
-    ``min_term_score``.
+    ``min_term_score``. When ``self_accession`` is given, the reference entry
+    with that accession is skipped so a query that is itself in the reference
+    library cannot transfer its own annotation.
     """
     # Per-term accumulation of (1 - weight) products plus voter records.
     failure: Dict[Tuple[str, str], float] = {}
@@ -205,6 +208,8 @@ def vote_terms(
         if weight <= 0.0:
             continue
         accession = ref_ids[int(idx)]
+        if self_accession is not None and accession == self_accession:
+            continue
         entry = ref_terms.get(accession)
         if not entry:
             continue
@@ -293,10 +298,15 @@ def run_plm_neighbor_search(
     n_terms = 0
     for key in keys:
         idx, cos = top_hits[key]
+        # A global key is "<sample>@<accession>". When the accession is itself
+        # a reference entry (curated training proteins), exclude it so the
+        # query cannot label itself; ordinary genome loci do not match.
+        self_accession = key.split("@", 1)[1] if "@" in key else None
         candidates = vote_terms(
             idx, cos, library.ids, library.terms,
             cos_floor=cos_floor, cos_min=cos_min,
             min_term_score=min_term_score, min_voters=min_voters,
+            self_accession=self_accession,
         )
         for cand in candidates:
             neighbour_text = ",".join(f"{acc}:{c:.3f}" for acc, c in cand["neighbours"])
