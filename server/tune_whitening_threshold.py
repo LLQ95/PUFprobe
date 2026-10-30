@@ -60,6 +60,13 @@ def main() -> int:
         pfams = (lib.terms.get(acc) or {}).get("Pfam", [])
         if pfams:
             eligible.append(key)
+    # Pre-build a Pfam -> reference index map so each query's positive set is
+    # a fast dictionary lookup instead of scanning the whole library.
+    pfam_to_idx: dict = {}
+    for i, ref_acc in enumerate(lib.ids):
+        for pf in (lib.terms.get(ref_acc) or {}).get("Pfam", []):
+            pfam_to_idx.setdefault(pf, []).append(i)
+
     rng = np.random.default_rng(42)
     rng.shuffle(eligible)
     chosen = eligible[: args.sample]
@@ -76,8 +83,8 @@ def main() -> int:
         for row, key in zip(sims, keys):
             acc = key.split("@")[-1]
             pfams = set((lib.terms.get(acc) or {}).get("Pfam", []))
-            same_idx = [i for i, ref_acc in enumerate(lib.ids)
-                        if pfams & set((lib.terms.get(ref_acc) or {}).get("Pfam", []))]
+            same_idx = sorted({
+                i for pf in pfams for i in pfam_to_idx.get(pf, [])})
             mask = np.ones(len(lib.ids), bool)
             mask[same_idx] = False
             same_values.append(row[same_idx])
