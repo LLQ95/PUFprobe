@@ -107,6 +107,17 @@ DEFAULTS: Dict[str, Any] = {
         "plm_cos_min": 0.50,
         "plm_min_term_score": 0.50,
         "plm_min_voters": 1,
+        # Pocket catalytic-template channel. It is not in the default channel
+        # list because it needs P2Rank (Java) and a prebuilt M-CSA template
+        # database; add "pocket" to channels on a server where those are
+        # installed. The structural gates match the foldseek channel, and
+        # pocket consistency is the fraction of aligned catalytic residues
+        # found inside one predicted pocket.
+        "pocket_sensitivity": 9.5,
+        "pocket_min_tmscore": 0.5,
+        "pocket_max_evalue": 1e-2,
+        "pocket_min_consistency": 0.5,
+        "pocket_max_pockets": 5,
         "report_evalue": 1e-3,
     },
     # context

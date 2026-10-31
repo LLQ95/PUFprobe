@@ -5,6 +5,6 @@ second-stage inference layer for CDS records annotated as hypothetical
 protein, uncharacterized protein or domains of unknown function.
 """
 
-__version__ = "0.9.1"
+__version__ = "0.10.0"
 
 __all__ = ["__version__"]

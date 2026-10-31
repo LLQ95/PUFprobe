@@ -14,6 +14,9 @@
 #            BPO model training.
 #   mcsa     M-CSA catalytic residues / entries (JSON API) for the pocket
 #            catalytic-template channel
+#   pocket   build the M-CSA pocket template foldseek database and the
+#            pocket_templates.json index (downloads reference PDB files;
+#            needs foldseek on PATH)
 #   hhsuite  UniRef30 HHblits database (large; stored on the data volume and
 #            linked into $DBDIR as hhblits_db_*, matching the 01 script)
 #   small    string small files + go + mcsa (no UniRef30, no aliases)
@@ -207,6 +210,26 @@ mcsa_db() {
 }
 
 # ---------------------------------------------------------------------------
+# M-CSA pocket template database (foldseek build from reference structures)
+# ---------------------------------------------------------------------------
+pocket_templates_db() {
+    local mcsa_dir="$EVID/mcsa"
+    local work_dir="$EVID/mcsa/build"
+    local py="${PYTHON_BIN:-python}"
+    if [ ! -s "$mcsa_dir/mcsa_residues.json" ]; then
+        log "M-CSA JSON not present; running mcsa download first"
+        mcsa_db
+    fi
+    if ! command -v foldseek >/dev/null 2>&1; then
+        die "foldseek not found on PATH; activate the conda env before building pocket templates"
+    fi
+    log "=== M-CSA: build pocket template database (reference PDB + foldseek) ==="
+    "$py" "$REPO_ROOT/server/build_pocket_templates.py" \
+        "$mcsa_dir" "$work_dir" "$DBDIR" --threads "$THREADS"
+    done_step "pocket_templates"
+}
+
+# ---------------------------------------------------------------------------
 # UniRef30 hhsuite (large)
 # ---------------------------------------------------------------------------
 hhsuite_db() {
@@ -247,9 +270,10 @@ case "${1:-small}" in
     string)  string_db ;;
     go)      go_db ;;
     mcsa)    mcsa_db ;;
+    pocket)  pocket_templates_db ;;
     hhsuite) hhsuite_db ;;
     all)     string_db; go_db; mcsa_db; hhsuite_db ;;
-    *) die "usage: $0 {small|string|go|mcsa|hhsuite|all}" ;;
+    *) die "usage: $0 {small|string|go|mcsa|pocket|hhsuite|all}" ;;
 esac
 
 log "Evidence database layout under $EVID:"
