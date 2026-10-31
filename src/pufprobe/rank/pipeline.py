@@ -40,7 +40,13 @@ from pufprobe.models import (
     families_from_dicts,
     to_dict,
 )
-from pufprobe.rank.calibrate import build_calibrator
+from pufprobe.rank.calibrate import (
+    IdentityCalibrator,
+    IsotonicCalibrator,
+    TemperatureScaling,
+    build_calibrator,
+    load_calibrator,
+)
 from pufprobe.rank.fuse import build_evidence_map, cds_record_from_row, fuse_proteins, load_weights_model
 from pufprobe.rank.priority import compute_family_priority
 from pufprobe.workdir import WorkDir
@@ -128,6 +134,28 @@ def run(
             log.warning("configured LTR model not found: %s; using rule fusion.",
                         ltr_path)
 
+    # Post-hoc confidence calibration (optional). Configured by
+    # rank.calibration_model_path with the same relative-path and fallback
+    # behaviour as the LTR model. Without a fitted calibrator the identity
+    # calibrator leaves raw scores unchanged.
+    fitted_calibrator = None
+    cal_path_cfg = str(config["rank"].get("calibration_model_path", "") or "")
+    if cal_path_cfg:
+        cal_path = Path(cal_path_cfg)
+        if not cal_path.is_absolute() and dbdir is not None:
+            cal_path = dbdir / cal_path
+        if cal_path.exists():
+            try:
+                fitted_calibrator = load_calibrator(str(cal_path))
+                log.info("Confidence calibrator loaded: %s (%s).",
+                         cal_path, type(fitted_calibrator).__name__)
+            except Exception as exc:  # pragma: no cover - defensive
+                log.warning("could not load calibrator %s (%s); using identity.",
+                            cal_path, exc)
+        else:
+            log.warning("configured calibrator not found: %s; using identity.",
+                        cal_path)
+
     model, model_note = load_weights_model(weights)
     if ltr_model is not None:
         fusion_note = f"fusion: learned LTR ranker ({ltr_model.backend}) from {ltr_path_cfg}"
@@ -143,9 +171,24 @@ def run(
         ltr_model=ltr_model,
     )
 
-    # Calibration: no held-out calibration set is produced by the upstream
-    # stages, so the default identity calibrator is used.
-    calibrator, cal_meta = build_calibrator(None)
+    # Use the fitted calibrator when one loaded; otherwise the identity
+    # calibrator keeps the raw scores. No ground truth is available at
+    # inference, so ECE comes from the held-out fit rather than this stage.
+    if fitted_calibrator is None:
+        calibrator, cal_meta = build_calibrator(None)
+    else:
+        calibrator = fitted_calibrator
+        if isinstance(calibrator, TemperatureScaling):
+            kind = "temperature"
+        elif isinstance(calibrator, IsotonicCalibrator):
+            kind = "isotonic"
+        else:
+            kind = "identity"
+        cal_meta = {
+            "method": kind,
+            "ece": None,
+            "note": f"loaded fitted calibrator from {cal_path_cfg}",
+        }
     for pred in predictions:
         raw_scores = [t.raw_score for t in pred.terms]
         calibrated = calibrator.transform(raw_scores)
