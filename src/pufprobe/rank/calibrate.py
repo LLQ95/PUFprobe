@@ -142,6 +142,8 @@ class IsotonicCalibrator:
         return self
 
     def transform(self, scores: Sequence[float]) -> List[float]:
+        if len(scores) == 0:
+            return []
         if self._backend.startswith("sklearn"):
             return [float(v) for v in self._model.transform(list(scores))]  # type: ignore[union-attr]
         if not self._xs:

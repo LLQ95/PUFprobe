@@ -519,6 +519,11 @@ def test_calibrator_save_load_roundtrip(tmp_path: Path):
         fitted.transform([0.2, 0.8]))
 
 
+def test_isotonic_transform_empty():
+    iso = IsotonicCalibrator().fit([0.1, 0.4, 0.9], [0, 1, 1])
+    assert iso.transform([]) == []
+
+
 def _write_single_evidence(rank_workdir: WorkDir) -> None:
     search = {"sA@g1": [_ev("remote_homology", "GO:0000001", "term one", 0.95)]}
     rank_workdir.path("search", "search_evidence.json").write_text(
