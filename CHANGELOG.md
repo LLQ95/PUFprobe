@@ -5,6 +5,34 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-31
+
+### Added
+
+- A pocket catalytic-template evidence channel. P2Rank predicts binding
+  pockets on the query structures, and foldseek aligns them against a
+  prebuilt database of M-CSA catalytic sites. A match passes the foldseek
+  TM-score and E-value gates, requires the mapped catalytic residues to have
+  the same amino-acid type as the template, and keeps the hit only when a
+  minimum fraction of the catalytic residues fall inside a predicted pocket.
+  Each accepted template emits an EC evidence record in the structure group.
+- `server/build_pocket_templates.py` builds the template database from M-CSA:
+  it pages through the full entry list, downloads each reference PDB structure,
+  extracts and validates the reference chain, and creates the foldseek database
+  together with a `pocket_templates.json` index. The build is resumable and
+  reuses an existing foldseek database unless `--rebuild-db` is given.
+- `server/12_download_evidence_dbs.sh` gains a `pocket` target that runs the
+  template build, and five `search` config options control the channel
+  (`pocket_sensitivity`, `pocket_min_tmscore`, `pocket_max_evalue`,
+  `pocket_min_consistency`, `pocket_max_pockets`).
+
+### Notes
+
+- The pocket channel is off by default. It depends on P2Rank and a Java
+  runtime and is resource-intensive, so it is enabled by adding `"pocket"` to
+  `search.channels`, typically in a server configuration. Missing tools or
+  databases disable the channel without stopping the run.
+
 ## [0.9.1] - 2026-10-31
 
 ### Fixed
