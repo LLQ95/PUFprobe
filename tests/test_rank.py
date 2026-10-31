@@ -466,6 +466,11 @@ def test_go_true_path_propagation_via_pipeline(rank_workdir, tmp_path: Path):
     # Direct child term and its propagated ancestor are both present.
     assert {"GO:0000002", "GO:0000001"} <= term_ids
 
+    # GO depth is attached so annotate can filter shallow generic terms.
+    depths = {t["term_id"]: t.get("go_depth") for t in preds["sA@g1"]["terms"]}
+    assert depths["GO:0000001"] == 0
+    assert depths["GO:0000002"] == 1
+
     cal = json.loads(rank_workdir.path("rank", "calibration.json").read_text("utf-8"))
     assert cal["go_true_path_propagation"] == "applied"
     assert cal["n_go_propagated"] == 1
