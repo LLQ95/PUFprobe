@@ -54,6 +54,21 @@ Keep a Changelog, and the project adheres to semantic versioning.
   ESM checkpoint once, and writes resumable shards; the embed stage was
   refactored into shared `load_esm_model` / `embed_items` functions so query
   and reference pooling cannot diverge.
+- BERT-whitening for the pLM nearest-neighbour channel. ESM-2 residue-mean
+  vectors are anisotropic, so unrelated proteins cluster at high cosine and
+  the raw channel produces many false positives. The reference build now
+  estimates a whitening transform from the library covariance and applies it
+  to the reference vectors and each query, followed by L2 normalisation. The
+  transform restores family-specific directions: unrelated proteins move to
+  cosine near zero while proteins from the same family stay separated at high
+  cosine. `server/whiten_existing_library.py` applies the transform to an
+  already-built library without re-embedding, and `server/verify_whitening.py`,
+  `server/tune_whitening_threshold.py` and `server/eval_whitening_floor.py`
+  diagnose the geometry and the cosine floor. On the hold-out set the whitened
+  four-channel model reaches Fmax 0.8435 and micro-AUPR 0.8810, the highest
+  AUPR of the tracked models; transferred pLM terms fall from about 120000 to
+  49856, and pLM-only terms shrink to a small set kept below the high
+  confidence threshold.
 - Gene Ontology true-path propagation in the rank stage. A dependency-free OBO
   reader (`pufprobe.ontology_graph`) loads `go-basic.obo` (plain or gzip),
   folds alt ids onto primary terms, excludes obsolete terms, and extends each
@@ -98,6 +113,11 @@ Keep a Changelog, and the project adheres to semantic versioning.
   that throttles every connection it aborts the whole download. The fetcher
   now uses `--timeout` to drop only fully stalled connections and retries each
   mirror in order.
+- The pLM nearest-neighbour channel is now enabled by default in
+  `search.channels`, and the rank stage defaults to the whitened four-channel
+  model `ltr_fusion_white.pkl`. A missing library or model still falls back to
+  the other channels or rule fusion without error, and the earlier
+  un-whitened model remains available for comparison.
 
 ## [0.6.0] - 2026-10-21
 
