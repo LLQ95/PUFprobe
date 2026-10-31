@@ -5,6 +5,25 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-31
+
+### Added
+
+- `GoOntology.depth` returns the longest true-path distance from a GO term to
+  a root (a root has depth 0), following the `is_a` and `part_of` DAG. Unknown
+  and obsolete terms return None. The rank stage attaches this value to every
+  GO term as a new optional `go_depth` field, and a `rank.min_term_depth`
+  config option (default 2) sets the gate used when writing product names.
+
+### Changed
+
+- Product names no longer include GO roots and shallow generic terms. The
+  annotate stage skips GO terms whose known depth is below `min_term_depth`,
+  so terms such as `molecular_function`, `catalytic activity` and `membrane`
+  are not written back. Non-GO terms and GO terms with an unknown depth are
+  kept, duplicate term names are collapsed, and a protein whose accepted
+  terms are all generic is left unannotated rather than given a vague name.
+
 ## [0.8.1] - 2026-10-31
 
 ### Fixed
