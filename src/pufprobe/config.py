@@ -60,7 +60,7 @@ DEFAULTS: Dict[str, Any] = {
     },
     # search
     "search": {
-        "channels": ["mmseqs", "foldseek", "hhblits", "eggnog"],
+        "channels": ["mmseqs", "foldseek", "hhblits", "eggnog", "plm_neighbor"],
         "foldseek_sensitivity": 9.5,
         # Structural hit quality gates: TM-score >= 0.5 is the same-fold
         # boundary, and the foldseek report E-value is kept slightly looser
@@ -132,11 +132,12 @@ DEFAULTS: Dict[str, Any] = {
         # are capped at single_group_cap (medium confidence, manual review).
         # "weighted_sum" is the previous linear sum kept for comparison.
         "fusion_method": "group_noisy_or",
-        # Optional learning-to-rank fusion model trained with
-        # server/train_ltr.py. When a valid model path is given its learned
-        # ranking scores replace the rule fusion above; an empty value or an
-        # unloadable model falls back to fusion_method without error.
-        "ltr_model_path": "",
+        # Learning-to-rank fusion model trained with server/train_ltr.py. The
+        # default points at the whitened four-channel ranker, whose learned
+        # ranking scores replace the rule fusion above. A relative path
+        # resolves against the dbdir, and an empty value or an unloadable
+        # model falls back to fusion_method without error.
+        "ltr_model_path": "ltr_fusion_white.pkl",
         "single_group_cap": 0.60,
         # A direct group only counts toward require_independent_groups when its
         # reliability-discounted strength reaches this gate. Weaker groups still
