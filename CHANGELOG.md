@@ -5,6 +5,21 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-31
+
+### Fixed
+
+- The hard-coded `pufprobe.__version__` string, which had stayed at 0.6.0
+  across several releases, is synchronized with the release metadata. A new
+  test asserts that `pufprobe.__version__` matches the version in
+  `pyproject.toml`, guarding against future drift.
+- Product names now exclude true-path ancestor terms supported only by
+  propagated evidence. After the 2019 GO restructuring, generic terms such
+  as `membrane` and `cell periphery` sit at depth 2 and passed the depth
+  gate even though they carry no protein-specific function. The annotate
+  stage keeps a GO term only when some evidence is not propagated, applied
+  in addition to the depth gate.
+
 ## [0.9.0] - 2026-10-31
 
 ### Added
