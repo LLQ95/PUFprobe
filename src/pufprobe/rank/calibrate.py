@@ -22,6 +22,8 @@ import math
 import pickle
 from typing import Any, List, Optional, Sequence
 
+import numpy as np
+
 from pufprobe.logging_utils import get_logger
 
 log = get_logger("rank.calibrate")
@@ -51,7 +53,7 @@ class IdentityCalibrator:
 
 def expected_calibration_error(scores: Sequence[float], labels: Sequence[int], n_bins: int = 10) -> float:
     """Standard 10-bin expected calibration error."""
-    if not scores:
+    if len(scores) == 0:
         return float("nan")
     bin_edges = [i / n_bins for i in range(n_bins + 1)]
     n = len(scores)
@@ -76,17 +78,18 @@ class TemperatureScaling:
         self.temperature = float(temperature)
 
     def fit(self, scores: Sequence[float], labels: Sequence[int]) -> "TemperatureScaling":
-        if not scores:
+        if len(scores) == 0:
             return self
+        s = np.clip(np.asarray(scores, dtype=np.float64), _EPS, 1.0 - _EPS)
+        y = np.asarray(labels, dtype=np.float64)
+        logits = np.log(s / (1.0 - s))
         best_t, best_nll = self.temperature, float("inf")
-        for t in [round(0.2 + 0.05 * i, 3) for i in range(0, 161)]:  # 0.2 .. 8.0
-            nll = 0.0
-            for s, y in zip(scores, labels):
-                p = _sigmoid(_logit(s) / t)
-                p = min(max(p, _EPS), 1.0 - _EPS)
-                nll -= y * math.log(p) + (1 - y) * math.log(1 - p)
+        for t in np.round(0.2 + 0.05 * np.arange(161), 3):  # 0.2 .. 8.0
+            p = 1.0 / (1.0 + np.exp(-logits / float(t)))
+            p = np.clip(p, _EPS, 1.0 - _EPS)
+            nll = float(-np.sum(y * np.log(p) + (1.0 - y) * np.log(1.0 - p)))
             if nll < best_nll:
-                best_nll, best_t = nll, t
+                best_nll, best_t = nll, float(t)
         self.temperature = best_t
         return self
 
@@ -104,7 +107,7 @@ class IsotonicCalibrator:
         self._ys: List[float] = []
 
     def fit(self, scores: Sequence[float], labels: Sequence[int]) -> "IsotonicCalibrator":
-        if not scores:
+        if len(scores) == 0:
             return self
         try:
             from sklearn.isotonic import IsotonicRegression  # type: ignore
