@@ -121,7 +121,9 @@ HTML/Markdown reports that list every channel behind each prediction.
 
 `annotate` backfills the high-confidence predictions into new GFF3, GBK and
 renamed FASTA files under the working directory. The original annotation
-files are never modified.
+files are never modified. Product names use GO depth to skip roots and shallow
+generic terms such as catalytic activity or membrane, and a protein with no
+sufficiently specific term is left unannotated rather than given a vague name.
 
 ## Outputs
 
