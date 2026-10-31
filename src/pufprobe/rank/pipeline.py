@@ -171,6 +171,15 @@ def run(
         ltr_model=ltr_model,
     )
 
+    # Attach GO depth so the annotate stage can skip shallow, generic terms
+    # when building product names. Non-GO terms and runs without an ontology
+    # keep go_depth None, which the backfill treats as "do not filter".
+    if go_ontology is not None:
+        for pred in predictions:
+            for term in pred.terms:
+                if term.term_type == "GO":
+                    term.go_depth = go_ontology.depth(term.term_id)
+
     # Use the fitted calibrator when one loaded; otherwise the identity
     # calibrator keeps the raw scores. No ground truth is available at
     # inference, so ECE comes from the held-out fit rather than this stage.

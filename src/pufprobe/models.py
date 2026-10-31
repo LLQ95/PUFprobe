@@ -123,6 +123,9 @@ class TermPrediction:
     confidence: float
     evidence: List[Evidence] = field(default_factory=list)
     rationale: str = ""
+    # GO ontology depth (root = 0); None for non-GO terms and when no ontology
+    # was loaded at rank time. Used by annotate to skip shallow, generic terms.
+    go_depth: Optional[int] = None
 
     @property
     def evidence_groups(self) -> List[str]:

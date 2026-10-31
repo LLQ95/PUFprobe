@@ -125,6 +125,11 @@ DEFAULTS: Dict[str, Any] = {
         # look for "go-basic.obo" in the search/rank database directory (dbdir).
         # When no ontology is found GO terms are kept at their annotated level.
         "go_obo_path": "",
+        # Minimum GO depth (root = 0) for a term to be written into a product
+        # name. Roots (depth 0) and shallow generic terms such as catalytic
+        # activity or membrane (depth 1) are skipped. A GO term whose depth is
+        # unknown (no ontology loaded) is kept rather than filtered.
+        "min_term_depth": 2,
         # Rule-based fusion. "group_noisy_or" (default) aggregates evidence at
         # the level of independent evidence groups: the strongest reliability-
         # discounted hit is taken per group, and group strengths are combined

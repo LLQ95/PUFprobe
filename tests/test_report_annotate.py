@@ -160,3 +160,71 @@ def test_annotate_backfill_only_matched_rows(workdir):
     faa = workdir.path("annotate", "sA.pufprobe.faa").read_text("utf-8")
     assert ">sA_0001 DUF1000 <putative> & co" in faa
     assert ">sA_0002 old enzyme" in faa
+
+
+# ---------------------------------------------------------------------------
+# Product-name granularity: shallow GO terms must not be written back.
+# ---------------------------------------------------------------------------
+def _term(ttype, tid, name, conf, go_depth=None):
+    from pufprobe.models import TermPrediction
+
+    return TermPrediction(
+        term_type=ttype, term_id=tid, term_name=name,
+        raw_score=conf, confidence=conf, go_depth=go_depth,
+    )
+
+
+def _prediction(sample, locus, terms):
+    from pufprobe.models import ProteinPrediction
+
+    return ProteinPrediction(sample_id=sample, locus_tag=locus, terms=terms)
+
+
+def test_select_terms_filters_shallow_go_terms():
+    from pufprobe.annotate.backfill import select_terms
+
+    pred = _prediction("sA", "g1", [
+        _term("GO", "GO:0003674", "molecular_function", 0.9, go_depth=0),
+        _term("GO", "GO:0003824", "catalytic activity", 0.9, go_depth=1),
+        _term("GO", "GO:0016829", "specific transferase", 0.9, go_depth=3),
+    ])
+    accepted = select_terms([pred], 0.8, 2)
+    assert list(accepted) == ["sA@g1"]
+    edit = accepted["sA@g1"]
+    assert edit["new_product"] == "specific transferase"
+    assert edit["term_ids"] == ["GO:GO:0016829"]
+
+
+def test_select_terms_skips_protein_with_only_generic_terms():
+    from pufprobe.annotate.backfill import select_terms
+
+    pred = _prediction("sA", "g1", [
+        _term("GO", "GO:0005575", "cellular_component", 0.9, go_depth=0),
+        _term("GO", "GO:0016020", "membrane", 0.9, go_depth=1),
+    ])
+    assert select_terms([pred], 0.8, 2) == {}
+
+
+def test_select_terms_keeps_unknown_depth_and_non_go():
+    from pufprobe.annotate.backfill import select_terms
+
+    pred = _prediction("sA", "g1", [
+        _term("GO", "GO:0012345", "unknown depth term", 0.9, go_depth=None),
+        _term("Pfam", "PF00001", "some family", 0.9),
+        _term("EC", "EC:1.2.3.4", "some enzyme", 0.9),
+    ])
+    edit = select_terms([pred], 0.8, 2)["sA@g1"]
+    assert edit["term_ids"] == [
+        "EC:EC:1.2.3.4", "GO:GO:0012345", "Pfam:PF00001",
+    ]
+
+
+def test_select_terms_deduplicates_names():
+    from pufprobe.annotate.backfill import select_terms
+
+    pred = _prediction("sA", "g1", [
+        _term("GO", "GO:0000001", "shared name", 0.9, go_depth=2),
+        _term("GO", "GO:0000002", "shared name", 0.9, go_depth=3),
+    ])
+    edit = select_terms([pred], 0.8, 2)["sA@g1"]
+    assert edit["new_product"] == "shared name"
