@@ -5,6 +5,22 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-31
+
+### Fixed
+
+- Calibrator fitting now accepts numpy arrays. Empty-input checks use
+  `len(scores) == 0` rather than `if not scores`, which raised an ambiguous
+  truth-value error on the validation and test arrays, and the temperature
+  negative log-likelihood grid search is vectorized with numpy instead of
+  nested Python loops.
+- Isotonic calibration returns an empty list for a prediction with no terms
+  instead of passing a zero-length array to sklearn's `IsotonicRegression`,
+  which rejected it with a minimum-of-one error. A regression test covers the
+  empty term-list case.
+
+## [0.8.0] - 2026-10-31
+
 ### Added
 
 - A learning-to-rank fusion framework (`pufprobe.rank.ltr`). Each
