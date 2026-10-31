@@ -46,11 +46,14 @@ def run(
         raise FileNotFoundError(f"missing {samples_path}; run prepare first")
     samples = [Sample(**row) for row in read_json(samples_path)]  # type: ignore[arg-type]
 
-    accepted = select_terms(predictions, threshold)
+    min_depth = int(config["rank"].get("min_term_depth", 2))
+    accepted = select_terms(predictions, threshold, min_depth)
     log.info(
-        "annotate: %d terms pass confidence threshold %.2f across %d proteins.",
+        "annotate: %d terms pass confidence threshold %.2f and depth gate %d "
+        "across %d proteins.",
         sum(len(edit["terms"]) for edit in accepted.values()),
         threshold,
+        min_depth,
         len(accepted),
     )
 
