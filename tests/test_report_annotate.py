@@ -165,12 +165,25 @@ def test_annotate_backfill_only_matched_rows(workdir):
 # ---------------------------------------------------------------------------
 # Product-name granularity: shallow GO terms must not be written back.
 # ---------------------------------------------------------------------------
-def _term(ttype, tid, name, conf, go_depth=None):
+def _evidence(channel, propagated=False, label="witness"):
+    from pufprobe.models import Evidence, EvidenceChannel
+
+    return Evidence(
+        channel=EvidenceChannel(channel),
+        target_id="x",
+        target_label=label,
+        score=1.0,
+        details={"propagated": True} if propagated else {},
+    )
+
+
+def _term(ttype, tid, name, conf, go_depth=None, evidence=None):
     from pufprobe.models import TermPrediction
 
     return TermPrediction(
         term_type=ttype, term_id=tid, term_name=name,
         raw_score=conf, confidence=conf, go_depth=go_depth,
+        evidence=evidence if evidence is not None else [],
     )
 
 
@@ -228,3 +241,33 @@ def test_select_terms_deduplicates_names():
     ])
     edit = select_terms([pred], 0.8, 2)["sA@g1"]
     assert edit["new_product"] == "shared name"
+
+
+def test_select_terms_filters_propagated_only_ancestors():
+    from pufprobe.annotate.backfill import select_terms
+
+    shallow_ancestor = _term(
+        "GO", "GO:0016020", "membrane", 0.9, go_depth=2,
+        evidence=[_evidence("remote_homology", propagated=True)],
+    )
+    direct = _term(
+        "GO", "GO:0009306", "protein secretion", 0.9, go_depth=6,
+        evidence=[_evidence("remote_homology", propagated=False)],
+    )
+    edit = select_terms([_prediction("sA", "g1", [shallow_ancestor, direct])], 0.8, 2)["sA@g1"]
+    assert edit["new_product"] == "protein secretion"
+    assert edit["term_ids"] == ["GO:GO:0009306"]
+
+
+def test_select_terms_keeps_term_with_mixed_evidence():
+    from pufprobe.annotate.backfill import select_terms
+
+    term = _term(
+        "GO", "GO:0019867", "outer membrane", 0.9, go_depth=3,
+        evidence=[
+            _evidence("eggnog", propagated=True),
+            _evidence("remote_homology", propagated=False),
+        ],
+    )
+    edit = select_terms([_prediction("sA", "g1", [term])], 0.8, 2)["sA@g1"]
+    assert edit["term_ids"] == ["GO:GO:0019867"]

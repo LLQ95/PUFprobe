@@ -49,8 +49,8 @@ def run(
     min_depth = int(config["rank"].get("min_term_depth", 2))
     accepted = select_terms(predictions, threshold, min_depth)
     log.info(
-        "annotate: %d terms pass confidence threshold %.2f and depth gate %d "
-        "across %d proteins.",
+        "annotate: %d directly supported terms pass confidence threshold %.2f, "
+        "depth gate %d and propagated-ancestor filter across %d proteins.",
         sum(len(edit["terms"]) for edit in accepted.values()),
         threshold,
         min_depth,

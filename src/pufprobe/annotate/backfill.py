@@ -40,12 +40,34 @@ def _is_shallow_go_term(term: TermPrediction, min_depth: int) -> bool:
     return term.go_depth is not None and term.go_depth < min_depth
 
 
+def _is_propagated_only(term: TermPrediction) -> bool:
+    """Return True when a GO term carries no direct, non-propagated evidence.
+
+    True-path propagation adds ancestor terms for CAFA evaluation and score
+    fusion. Those ancestors do not describe the protein directly and should
+    not become the product name, so a GO term whose every evidence object is
+    propagated is excluded. Non-GO terms and terms whose evidence cannot be
+    judged are kept.
+    """
+    if term.term_type != "GO" or not term.evidence:
+        return False
+    return all(
+        bool((ev.details or {}).get("propagated", False))
+        for ev in term.evidence
+    )
+
+
 def select_terms(
     predictions: List[ProteinPrediction],
     min_confidence: float,
     min_depth: int = 2,
 ) -> Dict[str, Dict[str, Any]]:
-    """Map global key -> accepted edit info for terms >= min_confidence."""
+    """Map global key -> accepted edit info for terms >= min_confidence.
+
+    Shallow GO terms below the depth gate and true-path ancestors supported
+    only by propagated evidence are excluded, so the product name keeps
+    directly supported, protein-specific terms.
+    """
     accepted: Dict[str, Dict[str, Any]] = {}
     for pred in predictions:
         terms = sorted(
@@ -55,6 +77,9 @@ def select_terms(
         # Drop GO roots and shallow generic terms (catalytic activity,
         # membrane, ...) that carry no protein-specific information.
         terms = [t for t in terms if not _is_shallow_go_term(t, min_depth)]
+        # Drop true-path ancestors supported only by propagated evidence;
+        # they serve evaluation and fusion rather than the protein's own name.
+        terms = [t for t in terms if not _is_propagated_only(t)]
         if not terms:
             continue
         groups = sorted({g for t in terms for g in t.evidence_groups})
