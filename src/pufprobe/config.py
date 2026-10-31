@@ -138,6 +138,11 @@ DEFAULTS: Dict[str, Any] = {
         # resolves against the dbdir, and an empty value or an unloadable
         # model falls back to fusion_method without error.
         "ltr_model_path": "ltr_fusion_white.pkl",
+        # Post-hoc confidence calibrator fitted with server/fit_calibrator.py.
+        # Empty means identity calibration, so raw scores are kept as
+        # confidence. A relative path resolves against the dbdir; a missing or
+        # unloadable file falls back to identity without error.
+        "calibration_model_path": "",
         "single_group_cap": 0.60,
         # A direct group only counts toward require_independent_groups when its
         # reliability-discounted strength reaches this gate. Weaker groups still
