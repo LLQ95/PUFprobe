@@ -36,6 +36,7 @@ from pufprobe.search import hhblits as hhblits_channel
 from pufprobe.search import idmapping
 from pufprobe.search import mmseqs_search as mmseqs_channel
 from pufprobe.search import plm_neighbor as plm_channel
+from pufprobe.search import pocket as pocket_channel
 from pufprobe.workdir import WorkDir
 
 logger = get_logger(__name__)
@@ -90,6 +91,27 @@ def run(
                 max_evalue=float(
                     search_cfg.get("foldseek_report_evalue",
                                    foldseek_channel.DEFAULT_FOLDSEEK_EVALUE)),
+            )
+        elif channel == "pocket":
+            evidence, _ = pocket_channel.run_pocket_search(
+                families, structures_dir, dbdir, out_dir,
+                min_plddt=float(fold_cfg["min_plddt"]),
+                sensitivity=float(
+                    search_cfg.get("pocket_sensitivity",
+                                   pocket_channel.DEFAULT_SENSITIVITY)),
+                threads=int(workdir.threads),
+                min_tmscore=float(
+                    search_cfg.get("pocket_min_tmscore",
+                                   pocket_channel.DEFAULT_MIN_TMSCORE)),
+                max_evalue=float(
+                    search_cfg.get("pocket_max_evalue",
+                                   pocket_channel.DEFAULT_MAX_EVALUE)),
+                min_pocket_consistency=float(
+                    search_cfg.get("pocket_min_consistency",
+                                   pocket_channel.DEFAULT_MIN_POCKET_CONSISTENCY)),
+                max_pockets=int(
+                    search_cfg.get("pocket_max_pockets",
+                                   pocket_channel.DEFAULT_MAX_POCKETS)),
             )
         elif channel == "hhblits":
             evidence, _ = hhblits_channel.run_hhblits_search(
