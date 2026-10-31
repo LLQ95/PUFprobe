@@ -101,6 +101,17 @@ channel by default (TM-Vec optional), against versioned databases under
 `--dbdir`, and normalizes every hit into a unified evidence record. Missing
 tools or databases disable one channel without stopping the run.
 
+The optional pocket channel adds structure-based catalytic-template matching.
+P2Rank predicts binding pockets on the query structures, and foldseek aligns
+them against a prebuilt database of M-CSA catalytic sites. A hit is kept only
+when the foldseek alignment reaches the TM-score and E-value gates, the mapped
+catalytic residues carry the same amino-acid type as the template, and a
+minimum fraction of them lie inside a predicted pocket. Each accepted template
+emits an EC evidence record in the structure group. The channel is not enabled
+by default because it needs P2Rank and a Java runtime; add `"pocket"` to
+`search.channels` and build the template database with
+`server/12_download_evidence_dbs.sh pocket`.
+
 `context` computes operon and gene-neighbour coupling, phylogenetic profiles
 across samples and cross-strain micro-synteny in pure Python. When CARD or
 VFDB references are supplied with `--card` or `--vfdb`, candidates coupled
