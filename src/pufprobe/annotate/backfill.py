@@ -28,8 +28,22 @@ from pufprobe.models import ProteinPrediction, Sample, TermPrediction
 log = get_logger("annotate.backfill")
 
 
+def _is_shallow_go_term(term: TermPrediction, min_depth: int) -> bool:
+    """Return True for a GO term whose known depth is below the gate.
+
+    Non-GO terms are never filtered. A GO term with an unknown depth (no
+    ontology loaded at rank time) is kept, because the graph cannot support
+    a judgement about its specificity.
+    """
+    if term.term_type != "GO":
+        return False
+    return term.go_depth is not None and term.go_depth < min_depth
+
+
 def select_terms(
-    predictions: List[ProteinPrediction], min_confidence: float
+    predictions: List[ProteinPrediction],
+    min_confidence: float,
+    min_depth: int = 2,
 ) -> Dict[str, Dict[str, Any]]:
     """Map global key -> accepted edit info for terms >= min_confidence."""
     accepted: Dict[str, Dict[str, Any]] = {}
@@ -38,11 +52,15 @@ def select_terms(
             (t for t in pred.terms if t.confidence >= min_confidence),
             key=lambda t: (-t.confidence, t.term_type, t.term_id),
         )
+        # Drop GO roots and shallow generic terms (catalytic activity,
+        # membrane, ...) that carry no protein-specific information.
+        terms = [t for t in terms if not _is_shallow_go_term(t, min_depth)]
         if not terms:
             continue
         groups = sorted({g for t in terms for g in t.evidence_groups})
+        names = list(dict.fromkeys(t.term_name for t in terms if t.term_name))
         accepted[pred.key] = {
-            "new_product": " / ".join(t.term_name for t in terms),
+            "new_product": " / ".join(names),
             "confidence": max(t.confidence for t in terms),
             "evidence_groups": groups,
             "term_ids": [f"{t.term_type}:{t.term_id}" for t in terms],
