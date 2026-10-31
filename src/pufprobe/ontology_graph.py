@@ -81,6 +81,28 @@ class GoOntology:
         return term_id in self._parents and term_id not in self.obsolete
 
     @lru_cache(maxsize=None)
+    def depth(self, term_id: str) -> Optional[int]:
+        """Return the longest true-path distance from a term to a root.
+
+        A root with no ``is_a`` or ``part_of`` parent has depth 0. Because the
+        ontology is a DAG a term can sit on several paths, and the longest one
+        is used so that depth reflects specificity. Unknown and obsolete terms
+        return None, which lets callers keep a term rather than filter it on a
+        judgement the graph cannot support.
+        """
+        term_id = self.resolve(term_id)
+        if term_id not in self._parents or term_id in self.obsolete:
+            return None
+        parents = self._parents.get(term_id)
+        if not parents:
+            return 0
+        parent_depths = [self.depth(p) for p in parents]
+        known = [d for d in parent_depths if d is not None]
+        if not known:
+            return 0
+        return 1 + max(known)
+
+    @lru_cache(maxsize=None)
     def ancestors(self, term_id: str) -> Tuple[str, ...]:
         """Return the term and all of its true-path ancestors.
 
