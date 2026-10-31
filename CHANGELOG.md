@@ -69,6 +69,17 @@ Keep a Changelog, and the project adheres to semantic versioning.
   AUPR of the tracked models; transferred pLM terms fall from about 120000 to
   49856, and pLM-only terms shrink to a small set kept below the high
   confidence threshold.
+- Post-hoc confidence calibration for the LTR ranker. The sigmoid applied to
+  the LightGBM output maps ranking scores into [0, 1] but does not make them
+  probabilities, so a fixed confidence threshold such as 0.80 does not match
+  the observed correctness. `server/fit_calibrator.py` rebuilds the same
+  temporal split, scores the validation and test proteins with a saved ranker,
+  and fits temperature and isotonic calibrators on the validation split only,
+  selecting the method by validation negative log-likelihood. The untouched
+  test split reports expected calibration error, Brier score and per-bin
+  reliability. Fitted calibrators are stored with the calibration helpers and
+  loaded at rank time through `rank.calibration_model_path`; an empty path or a
+  missing file keeps the identity calibration without error.
 - Gene Ontology true-path propagation in the rank stage. A dependency-free OBO
   reader (`pufprobe.ontology_graph`) loads `go-basic.obo` (plain or gzip),
   folds alt ids onto primary terms, excludes obsolete terms, and extends each
