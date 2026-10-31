@@ -96,21 +96,23 @@ used when available; structures can also be supplied from `--precomputed`. A
 pLDDT quality gate marks low-confidence models so that structure-based
 channels do not over-interpret them.
 
-`search` runs the remote-homology channels, MMseqs2, Foldseek and HHblits by
-default (TM-Vec optional), against versioned databases under `--dbdir`, and
-normalizes every hit into a unified evidence record. Missing tools or
-databases disable one channel without stopping the run.
+`search` runs MMseqs2, Foldseek, HHblits, eggNOG and the pLM nearest-neighbour
+channel by default (TM-Vec optional), against versioned databases under
+`--dbdir`, and normalizes every hit into a unified evidence record. Missing
+tools or databases disable one channel without stopping the run.
 
 `context` computes operon and gene-neighbour coupling, phylogenetic profiles
 across samples and cross-strain micro-synteny in pure Python. When CARD or
 VFDB references are supplied with `--card` or `--vfdb`, candidates coupled
 to resistance or virulence genes are flagged.
 
-`rank` fuses the evidence channels. Trained learning-to-rank weights are
-used when supplied with `--weights`; otherwise transparent rule weights from
-the configuration are applied. Confidence scores are calibrated, high
-confidence requires agreement between two independent evidence groups, and
-unanchored families receive a wet-lab priority score.
+`rank` fuses the evidence channels. The default configuration loads a
+whitened four-channel learning-to-rank model through `rank.ltr_model_path`; a
+model passed with `--weights`, an empty path or an unloadable default falls
+back to the transparent rule weights from the configuration. Confidence
+scores are calibrated, high confidence requires agreement between two
+independent evidence groups, and unanchored families receive a wet-lab
+priority score.
 
 `report` writes a machine-readable JSON dump together with auditable
 HTML/Markdown reports that list every channel behind each prediction.
