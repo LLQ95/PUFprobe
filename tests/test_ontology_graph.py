@@ -110,6 +110,30 @@ def test_obsolete_and_unknown_terms():
     assert set(onto.ancestors("GO:9999999")) == {"GO:9999999"}
 
 
+def test_depth_is_longest_path_to_root():
+    onto = _ontology()
+    # Terms with no true-path parent are roots.
+    assert onto.depth("GO:0000001") == 0
+    assert onto.depth("GO:0000010") == 0
+    # is_a chain 2 -> 1.
+    assert onto.depth("GO:0000002") == 1
+    # grandchild 3 -> 2 -> 1 (is_a) and 3 -> 10 (part_of); the longest path
+    # through the is_a chain gives depth 2.
+    assert onto.depth("GO:0000003") == 2
+
+
+def test_depth_unknown_and_obsolete_return_none():
+    onto = _ontology()
+    assert onto.depth("GO:9999999") is None
+    assert onto.depth("GO:0000006") is None
+
+
+def test_depth_alt_id_resolves():
+    onto = _ontology()
+    # GO:0000099 is an alt id of the leaf GO:0000005, which has no parent.
+    assert onto.depth("GO:0000099") == 0
+
+
 # ---------------------------------------------------------------------------
 # evidence propagation
 # ---------------------------------------------------------------------------
