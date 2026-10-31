@@ -150,6 +150,7 @@ def term_from_row(row: dict) -> TermPrediction:
         confidence=float(row.get("confidence", row["raw_score"])),
         evidence=[_evidence_from_row(e) for e in row.get("evidence", [])],
         rationale=row.get("rationale", ""),
+        go_depth=row.get("go_depth"),
     )
 
 
