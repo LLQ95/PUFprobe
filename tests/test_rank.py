@@ -13,6 +13,8 @@ from pufprobe.rank.calibrate import (
     IsotonicCalibrator,
     TemperatureScaling,
     build_calibrator,
+    load_calibrator,
+    save_calibrator,
 )
 from pufprobe.rank.fuse import classify_term
 from pufprobe.models import Evidence, EvidenceChannel
@@ -504,3 +506,69 @@ def test_build_calibrator_identity():
     cal, meta = build_calibrator(None)
     assert isinstance(cal, IdentityCalibrator)
     assert meta["method"] == "identity"
+
+
+def test_calibrator_save_load_roundtrip(tmp_path: Path):
+    fitted = TemperatureScaling().fit([0.1, 0.3, 0.6, 0.9], [0, 0, 1, 1])
+    path = tmp_path / "calibrator.pkl"
+    save_calibrator(str(path), fitted)
+    loaded = load_calibrator(str(path))
+    assert isinstance(loaded, TemperatureScaling)
+    assert loaded.temperature == fitted.temperature
+    assert loaded.transform([0.2, 0.8]) == pytest.approx(
+        fitted.transform([0.2, 0.8]))
+
+
+def _write_single_evidence(rank_workdir: WorkDir) -> None:
+    search = {"sA@g1": [_ev("remote_homology", "GO:0000001", "term one", 0.95)]}
+    rank_workdir.path("search", "search_evidence.json").write_text(
+        json.dumps(search), encoding="utf-8")
+
+
+def test_pipeline_uses_fitted_calibrator(rank_workdir, tmp_path: Path):
+    from pufprobe.rank import pipeline as rank_pipeline
+
+    _write_single_evidence(rank_workdir)
+    dbdir = tmp_path / "dbdir"
+    dbdir.mkdir()
+    save_calibrator(str(dbdir / "calibrator.pkl"),
+                    TemperatureScaling(temperature=2.0))
+
+    cfg = _custom_config()
+    cfg["rank"]["ltr_model_path"] = ""
+    cfg["rank"]["calibration_model_path"] = "calibrator.pkl"
+    rank_pipeline.run(rank_workdir, cfg, dbdir=dbdir)
+
+    preds = json.loads(
+        rank_workdir.path("rank", "predictions.json").read_text("utf-8"))
+    term = preds[0]["terms"][0]
+    expected = TemperatureScaling(temperature=2.0).transform(
+        [term["raw_score"]])[0]
+    assert term["confidence"] == pytest.approx(expected)
+    assert term["confidence"] != pytest.approx(term["raw_score"])
+
+    cal = json.loads(
+        rank_workdir.path("rank", "calibration.json").read_text("utf-8"))
+    assert cal["method"] == "temperature"
+
+
+def test_pipeline_missing_calibrator_falls_back(rank_workdir, tmp_path: Path):
+    from pufprobe.rank import pipeline as rank_pipeline
+
+    _write_single_evidence(rank_workdir)
+    dbdir = tmp_path / "dbdir"
+    dbdir.mkdir()
+
+    cfg = _custom_config()
+    cfg["rank"]["ltr_model_path"] = ""
+    cfg["rank"]["calibration_model_path"] = "absent.pkl"
+    rank_pipeline.run(rank_workdir, cfg, dbdir=dbdir)
+
+    preds = json.loads(
+        rank_workdir.path("rank", "predictions.json").read_text("utf-8"))
+    term = preds[0]["terms"][0]
+    assert term["confidence"] == pytest.approx(term["raw_score"])
+
+    cal = json.loads(
+        rank_workdir.path("rank", "calibration.json").read_text("utf-8"))
+    assert cal["method"] == "identity"
