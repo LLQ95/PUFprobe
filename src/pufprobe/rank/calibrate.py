@@ -19,7 +19,8 @@ serialised into ``07_rank/calibration.json``.
 from __future__ import annotations
 
 import math
-from typing import List, Optional, Sequence
+import pickle
+from typing import Any, List, Optional, Sequence
 
 from pufprobe.logging_utils import get_logger
 
@@ -184,3 +185,15 @@ def build_calibrator(calibration_set: Optional[Sequence[dict]] = None):
         "note": f"isotonic regression fitted on {len(scores)} held-out records",
     }
     return iso, meta
+
+
+def save_calibrator(path: str, calibrator: Any) -> None:
+    """Persist a fitted calibrator (temperature, isotonic or identity)."""
+    with open(path, "wb") as handle:
+        pickle.dump(calibrator, handle)
+
+
+def load_calibrator(path: str) -> Any:
+    """Load a calibrator previously stored with :func:`save_calibrator`."""
+    with open(path, "rb") as handle:
+        return pickle.load(handle)

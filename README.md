@@ -109,10 +109,12 @@ to resistance or virulence genes are flagged.
 `rank` fuses the evidence channels. The default configuration loads a
 whitened four-channel learning-to-rank model through `rank.ltr_model_path`; a
 model passed with `--weights`, an empty path or an unloadable default falls
-back to the transparent rule weights from the configuration. Confidence
-scores are calibrated, high confidence requires agreement between two
-independent evidence groups, and unanchored families receive a wet-lab
-priority score.
+back to the transparent rule weights from the configuration. A post-hoc
+calibrator fitted with `server/fit_calibrator.py` can be loaded through
+`rank.calibration_model_path` so confidence tracks the observed correctness;
+without one the raw scores are kept. High confidence requires agreement
+between two independent evidence groups, and unanchored families receive a
+wet-lab priority score.
 
 `report` writes a machine-readable JSON dump together with auditable
 HTML/Markdown reports that list every channel behind each prediction.
