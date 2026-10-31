@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 #
-# verify_name_fix.sh - validate the 0.9.0 product-name depth filter on the
+# verify_name_fix.sh - validate the product-name specificity filters on the
 # existing end-to-end run without touching the original annotation files.
 #
 # The script syncs the latest code from GitHub main, reruns rank so the
 # predictions carry GO depth, reruns annotate, and then scans changes.tsv for
-# shallow generic terms. It is idempotent: previous rank and annotate outputs
-# are moved aside with a timestamp rather than deleted.
+# shallow generic terms. The annotate stage applies a depth gate and a
+# propagated-ancestor filter, so generic terms such as membrane are excluded.
+# It is idempotent: previous rank and annotate outputs are moved aside with a
+# timestamp rather than deleted.
 #
 # Override the defaults with environment variables:
 #   PUFPROBE_ROOT, E2E_WORKDIR, DBDIR, E2E_CONFIG, PUFPROBE_ENV
@@ -37,9 +39,9 @@ python -c "import pufprobe; print('synced pufprobe', pufprobe.__version__)"
 
 # 2. Back up the current outputs and rerun rank and annotate. -------------
 stamp="$(date +%Y%m%d_%H%M%S)"
-[ -d "$WD/07_rank" ] && mv "$WD/07_rank" "$WD/07_rank_pre090_$stamp"
+[ -d "$WD/07_rank" ] && mv "$WD/07_rank" "$WD/07_rank_pre091_$stamp"
 [ -d "$WD/09_annotate" ] && mv "$WD/09_annotate" \
-  "$WD/09_annotate_pre090_$stamp"
+  "$WD/09_annotate_pre091_$stamp"
 
 pufprobe --workdir "$WD" --config "$CONFIG" rank --dbdir "$DBDIR" --force
 pufprobe --workdir "$WD" --config "$CONFIG" annotate --force
