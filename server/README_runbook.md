@@ -439,6 +439,7 @@ in parallel with the eggNOG 7 download.
 | `string` | COG-level links, species list/tree, per-species networks | about 100 MB with the default panel | DATABASE corroboration |
 | `go` | `go-basic.obo` + goatools | about 32 MB | GO true-path / BPO |
 | `mcsa` | entries + residues JSON | about 7 MB | pocket catalytic templates |
+| `pocket` | reference-chain PDB files, foldseek `pocket_db`, `pocket_templates.json` | about 1 GB plus the foldseek index | pocket catalytic-template channel |
 | `hhsuite` | UniRef30 2023_02 hhsuite build | about 66 GB compressed, about 200 GB unpacked | HHblits remote homology |
 | `small` | string + go + mcsa, no large build | about 140 MB | quick first pass |
 
@@ -450,6 +451,16 @@ cd /data/liushiwei/PUFprobe
 bash server/12_download_evidence_dbs.sh small
 nohup bash server/12_download_evidence_dbs.sh hhsuite \
   > server/logs/evidence_hhsuite.log 2>&1 &
+```
+
+Build the pocket template database after the M-CSA JSON is present (the
+`pocket` module runs `mcsa` automatically when it is missing). It needs
+foldseek on `PATH`, so run it inside the conda environment, and it resumes
+from cached reference structures and entry pages on restart:
+
+```bash
+conda activate pufprobe
+bash server/12_download_evidence_dbs.sh pocket
 ```
 
 The hhsuite module unpacks UniRef30 on the data volume and creates the same
