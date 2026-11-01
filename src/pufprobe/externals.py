@@ -103,24 +103,50 @@ def emapper() -> ToolInfo:
     return ToolInfo(name="emapper", available=False)
 
 
+def _p2rank_launcher(base: Path) -> Optional[str]:
+    """Locate a P2Rank launcher under an install base.
+
+    The portable release ships the launcher and jar in one of two layouts:
+    the current layout keeps ``prank`` at the top level with
+    ``bin/p2rank.jar``, while older releases place both under ``distro/``.
+    Requiring the jar keeps the launcher from being confused with the
+    unrelated bioconda PRANK alignment tool, which shares the same name.
+    """
+    for launcher, jar in (
+        (base / "prank", base / "bin" / "p2rank.jar"),
+        (base / "distro" / "prank", base / "distro" / "bin" / "p2rank.jar"),
+    ):
+        if launcher.is_file() and os.access(launcher, os.X_OK) and jar.is_file():
+            return str(launcher)
+    return None
+
+
 @lru_cache(maxsize=None)
 def p2rank() -> ToolInfo:
     # P2Rank is not distributed on bioconda; the setup script installs the
-    # portable GitHub release under thirdparty/p2rank (launcher: distro/prank).
-    # Resolution order: P2RANK_HOME, repo-local thirdparty, then PATH.
-    candidates = []
+    # portable GitHub release under thirdparty/p2rank. Resolution order:
+    # P2RANK_HOME, repo-local thirdparty, then PATH.
+    bases = []
     env_home = os.environ.get("P2RANK_HOME")
     if env_home:
-        candidates.append(os.path.join(env_home, "distro", "prank"))
+        bases.append(Path(env_home))
     repo_root = Path(__file__).resolve().parents[2]
-    candidates.append(str(repo_root / "thirdparty" / "p2rank" / "distro" / "prank"))
-    for candidate in candidates:
-        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-            return ToolInfo(name="p2rank", available=True, path=candidate)
-    path = shutil.which("p2rank") or shutil.which("prank")
-    if path is None:
-        return ToolInfo(name="p2rank", available=False)
-    return ToolInfo(name="p2rank", available=True, path=path)
+    bases.append(repo_root / "thirdparty" / "p2rank")
+    for base in bases:
+        launcher = _p2rank_launcher(base)
+        if launcher is not None:
+            return ToolInfo(name="p2rank", available=True, path=launcher)
+
+    # On PATH the "p2rank" name is unambiguous. "prank" collides with the
+    # bioconda alignment tool, so accept it only when the P2Rank jar is present.
+    path = shutil.which("p2rank")
+    if path is not None:
+        return ToolInfo(name="p2rank", available=True, path=path)
+    prank_path = shutil.which("prank")
+    if prank_path is not None:
+        if _p2rank_launcher(Path(prank_path).resolve().parent) is not None:
+            return ToolInfo(name="p2rank", available=True, path=prank_path)
+    return ToolInfo(name="p2rank", available=False)
 
 
 @lru_cache(maxsize=None)
