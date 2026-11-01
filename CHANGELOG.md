@@ -26,6 +26,14 @@ Keep a Changelog, and the project adheres to semantic versioning.
   (`pocket_sensitivity`, `pocket_min_tmscore`, `pocket_max_evalue`,
   `pocket_min_consistency`, `pocket_max_pockets`).
 
+### Fixed
+
+- P2Rank detection now recognizes the portable release layout that keeps the
+  `prank` launcher at the top level with `bin/p2rank.jar`, in addition to the
+  legacy `distro/` layout. The PATH fallback for `prank` requires a neighboring
+  `p2rank.jar`, so the unrelated bioconda PRANK alignment tool is not
+  misidentified as P2Rank.
+
 ### Notes
 
 - The pocket channel is off by default. It depends on P2Rank and a Java
