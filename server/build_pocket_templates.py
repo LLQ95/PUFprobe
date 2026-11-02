@@ -180,11 +180,11 @@ def read_foldseek_targets(db_prefix: Path) -> List[str]:
     if not header_path.exists():
         return []
     names: List[str] = []
-    text = header_path.read_text(encoding="utf-8", errors="replace")
-    for line in text.splitlines():
-        line = line.strip()
-        if line:
-            names.append(line.split(" ", 1)[0])
+    # MMseqs2 stores each database record as text followed by a NUL byte.
+    for record in header_path.read_bytes().split(b"\x00"):
+        text = record.decode("utf-8", errors="replace").strip()
+        if text:
+            names.append(text.split(" ", 1)[0])
     return names
 
 

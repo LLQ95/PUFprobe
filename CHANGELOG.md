@@ -33,6 +33,10 @@ Keep a Changelog, and the project adheres to semantic versioning.
   legacy `distro/` layout. The PATH fallback for `prank` requires a neighboring
   `p2rank.jar`, so the unrelated bioconda PRANK alignment tool is not
   misidentified as P2Rank.
+- Template target names are read by splitting the foldseek header database on
+  its NUL record separators. The previous line-based parser kept leading NUL
+  bytes, which made every built template appear absent and produced an empty
+  template index.
 
 ### Notes
 
