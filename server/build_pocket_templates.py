@@ -145,9 +145,11 @@ def build_chain_pdb(
 ) -> List[dict]:
     """Extract one chain, write it and verify its catalytic residues.
 
-    Returns the residues verified against the structure at their chain-local
-    sequence position. Residues that are missing, out of range or whose
-    three-letter code does not match M-CSA are dropped and reported.
+    Residues are located by their PDB author number (``auth_resid``); the few
+    M-CSA rows without an author number fall back to the M-CSA ``resid`` as a
+    chain-local position. Returns the verified residues keyed by their
+    chain-local sequence position, which is the position foldseek reports.
+    Residues that are missing or whose code does not match M-CSA are dropped.
     """
     out_path = chain_dir / f"{target}.pdb"
     if not out_path.exists():
@@ -158,19 +160,27 @@ def build_chain_pdb(
 
     residues = parse_pdb_residues(out_path.read_text(encoding="utf-8"))
     by_index = {r.seq_index: r for r in residues}
+    by_auth = {r.auth_resid: r for r in residues}
     verified: List[dict] = []
-    for resid, code in sorted(expected.items()):
-        residue = by_index.get(resid)
+    for resid, item in sorted(expected.items()):
+        code = item["code"]
+        auth_resid = item.get("auth_resid")
+        if auth_resid is not None:
+            residue = by_auth.get(auth_resid)
+            anchor = auth_resid
+        else:
+            residue = by_index.get(resid)
+            anchor = resid
         if residue is None:
-            print(f"  [warn] {target}: catalytic resid {resid} out of range")
+            print(f"  [warn] {target}: catalytic residue {anchor} missing")
             continue
         if residue.resname.upper() != code.upper():
             print(
-                f"  [warn] {target}: resid {resid} is {residue.resname}, "
+                f"  [warn] {target}: residue {anchor} is {residue.resname}, "
                 f"expected {code}"
             )
             continue
-        verified.append({"resid": resid, "code": code})
+        verified.append({"resid": residue.seq_index, "code": code})
     return verified
 
 
