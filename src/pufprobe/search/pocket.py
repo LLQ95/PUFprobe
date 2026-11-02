@@ -212,7 +212,13 @@ def parse_p2rank_predictions(csv_path: Path) -> List[PocketPrediction]:
         return pockets
     with csv_path.open("r", encoding="utf-8", errors="replace", newline="") as handle:
         reader = csv.DictReader(handle)
-        for row in reader:
+        for raw_row in reader:
+            # P2Rank writes fixed-width, space-padded columns, so both the
+            # header names and values must be stripped before use.
+            row = {
+                (key or "").strip(): (value or "").strip()
+                for key, value in raw_row.items()
+            }
             try:
                 rank = int(row["rank"])
                 score = float(row["score"])
@@ -220,13 +226,13 @@ def parse_p2rank_predictions(csv_path: Path) -> List[PocketPrediction]:
             except (KeyError, ValueError):
                 continue
             residue_keys: Set[Tuple[str, int, str]] = set()
-            for token in (row.get("residue_ids") or "").split():
+            for token in row.get("residue_ids", "").split():
                 parsed = parse_residue_token(token)
                 if parsed is not None:
                     residue_keys.add(parsed)
             pockets.append(
                 PocketPrediction(
-                    name=(row.get("name") or "").strip(),
+                    name=row.get("name", ""),
                     rank=rank,
                     score=score,
                     probability=probability,
