@@ -66,18 +66,28 @@ def _classify(residues: list, expected: Dict[int, dict], mode: str) -> dict:
     """Classify one chain under a selected numbering scheme."""
     by_index = {r.seq_index: r for r in residues}
     by_auth = {r.auth_resid: r for r in residues}
+    auth_values = [r.auth_resid for r in residues]
+    auth_min = min(auth_values) if auth_values else 0
+    auth_max = max(auth_values) if auth_values else 0
 
     residue_results: List[dict] = []
     for resid, item in sorted(expected.items()):
-        if mode == "auth" and item["auth_resid"] is not None:
+        use_auth = mode == "auth" and item["auth_resid"] is not None
+        if use_auth:
             residue = by_auth.get(item["auth_resid"])
             anchor = item["auth_resid"]
         else:
             residue = by_index.get(resid)
             anchor = resid
         expected_code = item["code"]
+        missing_reason = None
         if residue is None:
             status, actual = "missing", None
+            if use_auth:
+                within = auth_min <= anchor <= auth_max
+            else:
+                within = 1 <= anchor <= len(residues)
+            missing_reason = "internal_gap" if within else "out_of_range"
         elif residue.resname.upper() != expected_code.upper():
             status, actual = "mismatch", residue.resname
         else:
@@ -90,6 +100,7 @@ def _classify(residues: list, expected: Dict[int, dict], mode: str) -> dict:
                 "expected": expected_code,
                 "actual": actual,
                 "status": status,
+                "missing_reason": missing_reason,
             }
         )
 
