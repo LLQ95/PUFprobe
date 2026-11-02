@@ -5,6 +5,8 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-02
+
 ### Fixed
 
 - Pocket template construction locates catalytic residues by the PDB author
