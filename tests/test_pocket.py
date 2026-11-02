@@ -550,3 +550,30 @@ def test_run_pocket_search_external_failure_skips(tmp_path, monkeypatch):
     )
     assert evidence == {}
     assert raw is None
+
+
+def _load_build_module():
+    import importlib.util
+
+    script = Path(__file__).resolve().parents[1] / "server" / "build_pocket_templates.py"
+    spec = importlib.util.spec_from_file_location("build_pocket_templates", script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_read_foldseek_targets_nul_separated(tmp_path):
+    module = _load_build_module()
+    db_prefix = tmp_path / "pocket_db"
+    # Real MMseqs2 header layout: text + newline + NUL per record.
+    raw = b"12as_A\n\x0013pk_A\n\x001a05_A some title\n\x00"
+    (tmp_path / "pocket_db_h").write_bytes(raw)
+
+    targets = module.read_foldseek_targets(db_prefix)
+
+    assert targets == ["12as_A", "13pk_A", "1a05_A"]
+
+
+def test_read_foldseek_targets_missing_header(tmp_path):
+    module = _load_build_module()
+    assert module.read_foldseek_targets(tmp_path / "pocket_db") == []
