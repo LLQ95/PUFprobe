@@ -5,6 +5,17 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Pocket template construction locates catalytic residues by the PDB author
+  number (`auth_resid`) instead of treating the M-CSA `resid` as a chain-local
+  sequence index. The M-CSA `resid` follows different numbering conventions
+  across entries, so the previous lookup mismatched most residues and kept only
+  611 of 1115 reference sites. The verified residues are now stored at their
+  chain-local sequence position, which is the position foldseek reports, and
+  1111 sites are retained; the few sites without an author number fall back to
+  the M-CSA `resid`.
+
 ## [0.10.0] - 2026-10-31
 
 ### Added

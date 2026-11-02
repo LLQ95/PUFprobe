@@ -19,9 +19,11 @@ def collect_reference_sites(
     """Group reference catalytic residues by ``(pdb, chain)``.
 
     Reads the flat M-CSA residues list and keeps only reference chain rows
-    (``is_reference`` true). Each site stores its M-CSA id and a map of
-    catalytic residue sequence positions (the M-CSA ``resid``) to three-letter
-    residue codes. Residue positions are deduplicated within a site.
+    (``is_reference`` true). Each site stores its M-CSA id and a map keyed by
+    the M-CSA ``resid``; each value keeps the three-letter residue code and the
+    PDB author number (``auth_resid``), which is the numbering used to locate
+    the residue inside a downloaded structure. Residue positions are
+    deduplicated within a site.
     """
     sites: Dict[Tuple[str, str], dict] = {}
     for residue in residues:
@@ -32,14 +34,16 @@ def collect_reference_sites(
             pdb = str(chain_row.get("pdb_id", "")).strip().lower()
             chain = str(chain_row.get("chain_name", "")).strip()
             resid = chain_row.get("resid")
-            code = str(chain_row.get("code", "")).strip()
             if not pdb or not chain or resid is None:
                 continue
             key = (pdb, chain)
             site = sites.setdefault(
                 key, {"mcsa_id": mcsa_id, "residues": {}}
             )
-            site["residues"][int(resid)] = code
+            site["residues"][int(resid)] = {
+                "code": str(chain_row.get("code", "")).strip(),
+                "auth_resid": chain_row.get("auth_resid"),
+            }
     return sites
 
 
