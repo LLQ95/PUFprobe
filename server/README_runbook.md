@@ -463,6 +463,23 @@ conda activate pufprobe
 bash server/12_download_evidence_dbs.sh pocket
 ```
 
+Two static analysis scripts describe the built template library without
+re-running foldseek. `analyze_template_library.py` reads the M-CSA JSON and
+reports the functional coverage, catalytic-residue composition and numbering
+conventions, optionally using the coverage report to restrict the retained
+set to verified sites. `analyze_template_coverage.py` compares the two
+numbering schemes and labels each missing residue as `internal_gap` or
+`out_of_range`:
+
+```bash
+python server/analyze_template_library.py \
+  /db/student/metagenome/evidence_dbs/mcsa/mcsa \
+  --coverage /db/student/metagenome/evidence_dbs/mcsa/build/coverage_report.json
+python server/analyze_template_coverage.py \
+  /db/student/metagenome/evidence_dbs/mcsa/mcsa \
+  /db/student/metagenome/evidence_dbs/mcsa/build
+```
+
 The hhsuite module unpacks UniRef30 on the data volume and creates the same
 `dbs/dbdir/hhblits_db_*` symlinks as the tier B step, so either route satisfies
 the HHblits channel.

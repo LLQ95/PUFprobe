@@ -5,6 +5,22 @@ Keep a Changelog, and the project adheres to semantic versioning.
 
 ## [Unreleased]
 
+### Added
+
+- `server/analyze_template_library.py` performs a static analysis of the M-CSA
+  template library without downloading structures or running foldseek. It
+  reports the functional coverage (distinct EC numbers, EC classes, templates
+  per EC and the fraction of single-template ECs), the catalytic-residue
+  composition and residues-per-site distribution, and the numbering
+  conventions that distinguish the M-CSA `resid` from the PDB author number.
+  It can read a coverage report so the retained-site statistics use the
+  verified set.
+- `server/analyze_template_coverage.py` subdivides missing catalytic residues
+  into `internal_gap` (the author number lies within the chain range but no
+  residue is recorded, typically a disordered region) and `out_of_range` (the
+  anchor falls outside the chain's author-number range), attributing the
+  coverage loss to a concrete cause.
+
 ## [0.10.1] - 2026-11-02
 
 ### Fixed
