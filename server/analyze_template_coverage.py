@@ -131,8 +131,24 @@ def main() -> None:
     detailed: Dict[str, dict] = {}
     for index, ((pdb_id, chain), site) in enumerate(sorted(sites.items()), 1):
         target = f"{pdb_id}_{chain}"
-        pdb_path = builder.download_pdb(pdb_id, raw_dir)
-        pdb_text = pdb_path.read_text(encoding="utf-8", errors="replace")
+        try:
+            pdb_path = builder.download_pdb(pdb_id, raw_dir)
+            pdb_text = pdb_path.read_text(encoding="utf-8", errors="replace")
+        except RuntimeError as exc:
+            detailed[target] = {
+                "mcsa_id": site["mcsa_id"],
+                "site_class": "download_failed",
+                "error": str(exc),
+                "chain_length": 0,
+                "residues": [],
+                "counts": {
+                    "verified": 0,
+                    "mismatch": 0,
+                    "out_of_range": 0,
+                },
+            }
+            print(f"  [warn] {target}: {exc}")
+            continue
         result = classify_site(pdb_text, chain, site["residues"])
         result["mcsa_id"] = site["mcsa_id"]
         if result["site_class"] == "none":
@@ -145,7 +161,7 @@ def main() -> None:
 
     site_classes = {
         label: sum(1 for r in detailed.values() if r["site_class"] == label)
-        for label in ("full", "partial", "none")
+        for label in ("full", "partial", "none", "download_failed")
     }
     residue_status = {label: 0 for label in ("verified", "mismatch", "out_of_range")}
     for result in detailed.values():
