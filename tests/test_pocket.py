@@ -601,3 +601,60 @@ def test_read_foldseek_targets_nul_separated(tmp_path):
 def test_read_foldseek_targets_missing_header(tmp_path):
     module = _load_build_module()
     assert module.read_foldseek_targets(tmp_path / "pocket_db") == []
+
+
+def test_build_chain_pdb_locates_by_author_number(tmp_path):
+    module = _load_build_module()
+    pdb_path = tmp_path / "raw.pdb"
+    chain_dir = tmp_path / "chains"
+    # Author numbering starts at 4, so the sequence index lags it by 3.
+    pdb_path.write_text(_chain_pdb("A", ["ALA", "TYR", "ILE"], first_auth=4))
+    expected = {251: {"code": "ILE", "auth_resid": 6}}
+
+    verified = module.build_chain_pdb(
+        pdb_path, "A", "12as_A", chain_dir, expected
+    )
+
+    assert verified == [{"resid": 3, "code": "ILE"}]
+
+
+def test_build_chain_pdb_falls_back_to_resid(tmp_path):
+    module = _load_build_module()
+    pdb_path = tmp_path / "raw.pdb"
+    chain_dir = tmp_path / "chains"
+    pdb_path.write_text(_chain_pdb("A", ["MET", "SER", "GLY"]))
+    expected = {2: {"code": "SER", "auth_resid": None}}
+
+    verified = module.build_chain_pdb(
+        pdb_path, "A", "example_A", chain_dir, expected
+    )
+
+    assert verified == [{"resid": 2, "code": "SER"}]
+
+
+def test_collect_reference_sites_keeps_author_number():
+    from pufprobe.search import pocket_templates
+
+    synthetic = [
+        {
+            "mcsa_id": 75,
+            "residue_chains": [
+                {
+                    "is_reference": True,
+                    "pdb_id": "12AS",
+                    "chain_name": "A",
+                    "resid": 251,
+                    "auth_resid": 251,
+                    "code": "Ser",
+                }
+            ],
+        }
+    ]
+
+    sites = pocket_templates.collect_reference_sites(synthetic)
+
+    assert sites[("12as", "A")]["mcsa_id"] == 75
+    assert sites[("12as", "A")]["residues"][251] == {
+        "code": "Ser",
+        "auth_resid": 251,
+    }
