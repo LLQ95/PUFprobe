@@ -37,6 +37,10 @@ Keep a Changelog, and the project adheres to semantic versioning.
   its NUL record separators. The previous line-based parser kept leading NUL
   bytes, which made every built template appear absent and produced an empty
   template index.
+- P2Rank predictions are parsed after stripping the fixed-width, space-padded
+  column names and values. The previous parser looked up unstripped header
+  keys and dropped every predicted pocket, so catalytic residues never
+  appeared to lie in a pocket.
 
 ### Notes
 
