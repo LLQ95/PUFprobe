@@ -3,10 +3,11 @@
 
 The build keeps a site only when at least one catalytic residue is found in the
 downloaded reference chain with the same amino-acid code recorded by M-CSA.
-This script re-runs that verification without foldseek, classifies every
-catalytic residue (verified, amino-acid mismatch, or position out of range),
-and groups the sites so the coverage loss can be attributed to a concrete
-cause rather than a single count.
+The current build treats the M-CSA ``resid`` as a foldseek 1-based in-chain
+sequence index. M-CSA also provides ``auth_resid``, the PDB author numbering,
+which is the numbering carried by the parsed PDB residues. This script runs
+both numbering schemes without foldseek and reports how many sites each one
+recovers, so the coverage loss can be attributed to a concrete cause.
 
 Usage:
     python analyze_template_coverage.py <mcsa_dir> <work_dir>
@@ -28,7 +29,6 @@ from pufprobe.search.pocket import (
     extract_chain_pdb,
     parse_pdb_residues,
 )
-from pufprobe.search.pocket_templates import collect_reference_sites
 
 # Reuse the build orchestration helpers so download and parsing stay identical.
 import build_pocket_templates as builder
@@ -37,25 +37,56 @@ _MCSA_RESIDUES_NAME = "mcsa_residues.json"
 _REPORT_NAME = "coverage_report.json"
 
 
-def classify_site(pdb_text: str, chain: str, expected: Dict[int, str]) -> dict:
-    """Classify one reference chain's catalytic residues against its PDB."""
-    chain_text = extract_chain_pdb(pdb_text, chain)
-    residues = parse_pdb_residues(chain_text)
+def collect_sites(residues: List[dict]) -> Dict[tuple, dict]:
+    """Group reference catalytic residues, keeping both numbering schemes."""
+    sites: Dict[tuple, dict] = {}
+    for residue in residues:
+        mcsa_id = residue.get("mcsa_id")
+        for chain_row in residue.get("residue_chains", []) or []:
+            if not chain_row.get("is_reference"):
+                continue
+            pdb = str(chain_row.get("pdb_id", "")).strip().lower()
+            chain = str(chain_row.get("chain_name", "")).strip()
+            resid = chain_row.get("resid")
+            if not pdb or not chain or resid is None:
+                continue
+            key = (pdb, chain)
+            site = sites.setdefault(
+                key, {"mcsa_id": mcsa_id, "residues": {}}
+            )
+            site["residues"][int(resid)] = {
+                "resid": int(resid),
+                "auth_resid": chain_row.get("auth_resid"),
+                "code": str(chain_row.get("code", "")).strip(),
+            }
+    return sites
+
+
+def _classify(residues: list, expected: Dict[int, dict], mode: str) -> dict:
+    """Classify one chain under a selected numbering scheme."""
     by_index = {r.seq_index: r for r in residues}
-    chain_len = len(residues)
+    by_auth = {r.auth_resid: r for r in residues}
 
     residue_results: List[dict] = []
-    for resid, expected_code in sorted(expected.items()):
-        residue = by_index.get(resid)
+    for resid, item in sorted(expected.items()):
+        if mode == "auth" and item["auth_resid"] is not None:
+            residue = by_auth.get(item["auth_resid"])
+            anchor = item["auth_resid"]
+        else:
+            residue = by_index.get(resid)
+            anchor = resid
+        expected_code = item["code"]
         if residue is None:
-            status, actual = "out_of_range", None
+            status, actual = "missing", None
         elif residue.resname.upper() != expected_code.upper():
             status, actual = "mismatch", residue.resname
         else:
             status, actual = "verified", residue.resname
         residue_results.append(
             {
+                "anchor": anchor,
                 "resid": resid,
+                "auth_resid": item["auth_resid"],
                 "expected": expected_code,
                 "actual": actual,
                 "status": status,
@@ -63,8 +94,8 @@ def classify_site(pdb_text: str, chain: str, expected: Dict[int, str]) -> dict:
         )
 
     verified = [r for r in residue_results if r["status"] == "verified"]
-    mismatches = [r for r in residue_results if r["status"] == "mismatch"]
-    out_of_range = [r for r in residue_results if r["status"] == "out_of_range"]
+    mismatch = [r for r in residue_results if r["status"] == "mismatch"]
+    missing = [r for r in residue_results if r["status"] == "missing"]
     if len(verified) == len(residue_results):
         site_class = "full"
     elif verified:
@@ -72,40 +103,15 @@ def classify_site(pdb_text: str, chain: str, expected: Dict[int, str]) -> dict:
     else:
         site_class = "none"
     return {
-        "chain_length": chain_len,
+        "chain_length": len(residues),
         "site_class": site_class,
         "residues": residue_results,
         "counts": {
             "verified": len(verified),
-            "mismatch": len(mismatches),
-            "out_of_range": len(out_of_range),
+            "mismatch": len(mismatch),
+            "missing": len(missing),
         },
     }
-
-
-def offset_guess(pdb_text: str, chain: str, expected: Dict[int, str]) -> Optional[int]:
-    """Find a constant sequence-position offset that makes every residue match.
-
-    A single offset that repairs an otherwise failing site points to a numbering
-    convention mismatch rather than unrelated structural differences.
-    """
-    chain_text = extract_chain_pdb(pdb_text, chain)
-    by_index = {r.seq_index: r for r in parse_pdb_residues(chain_text)}
-    offsets = {
-        candidate
-        for residue in by_index.values()
-        for resid, code in expected.items()
-        if residue.resname.upper() == code.upper()
-        for candidate in (residue.seq_index - resid,)
-    }
-    for offset in offsets:
-        if all(
-            (r := by_index.get(resid + offset)) is not None
-            and r.resname.upper() == code.upper()
-            for resid, code in expected.items()
-        ):
-            return offset
-    return None
 
 
 def parse_args() -> argparse.Namespace:
@@ -126,7 +132,7 @@ def main() -> None:
     residues_path = mcsa_dir / _MCSA_RESIDUES_NAME
     with residues_path.open("r", encoding="utf-8") as handle:
         residues = json.load(handle)
-    sites = collect_reference_sites(residues)
+    sites = collect_sites(residues)
 
     detailed: Dict[str, dict] = {}
     for index, ((pdb_id, chain), site) in enumerate(sorted(sites.items()), 1):
@@ -139,55 +145,54 @@ def main() -> None:
                 "mcsa_id": site["mcsa_id"],
                 "site_class": "download_failed",
                 "error": str(exc),
-                "chain_length": 0,
-                "residues": [],
-                "counts": {
-                    "verified": 0,
-                    "mismatch": 0,
-                    "out_of_range": 0,
-                },
             }
             print(f"  [warn] {target}: {exc}")
             continue
-        result = classify_site(pdb_text, chain, site["residues"])
-        result["mcsa_id"] = site["mcsa_id"]
-        if result["site_class"] == "none":
-            result["offset_guess"] = offset_guess(
-                pdb_text, chain, site["residues"]
-            )
-        detailed[target] = result
+        chain_residues = parse_pdb_residues(extract_chain_pdb(pdb_text, chain))
+        detailed[target] = {
+            "mcsa_id": site["mcsa_id"],
+            "seq_based": _classify(chain_residues, site["residues"], "seq"),
+            "auth_based": _classify(chain_residues, site["residues"], "auth"),
+        }
         if index % 100 == 0:
             print(f"processed {index}/{len(sites)} sites")
 
-    site_classes = {
-        label: sum(1 for r in detailed.values() if r["site_class"] == label)
-        for label in ("full", "partial", "none", "download_failed")
-    }
-    residue_status = {label: 0 for label in ("verified", "mismatch", "out_of_range")}
-    for result in detailed.values():
-        for label, count in result["counts"].items():
-            residue_status[label] += count
-    offset_fixed = sorted(
-        (target, result["offset_guess"])
-        for target, result in detailed.items()
-        if result["site_class"] == "none" and result["offset_guess"] is not None
-    )
+    def class_counts(mode: str) -> Dict[str, int]:
+        key = "seq_based" if mode == "seq" else "auth_based"
+        return {
+            label: sum(
+                1 for r in detailed.values()
+                if r.get("site_class") == "download_failed"
+                and label == "download_failed"
+                or r.get(key, {}).get("site_class") == label
+            )
+            for label in ("full", "partial", "none", "download_failed")
+        }
+
+    def residue_counts(mode: str) -> Dict[str, int]:
+        key = "seq_based" if mode == "seq" else "auth_based"
+        totals = {"verified": 0, "mismatch": 0, "missing": 0}
+        for r in detailed.values():
+            if key in r:
+                for label, count in r[key]["counts"].items():
+                    totals[label] += count
+        return totals
 
     summary = {
         "total_sites": len(detailed),
-        "site_classes": site_classes,
-        "residue_status": residue_status,
-        "none_sites_with_constant_offset": len(offset_fixed),
+        "seq_based_sites": class_counts("seq"),
+        "auth_based_sites": class_counts("auth"),
+        "seq_based_residues": residue_counts("seq"),
+        "auth_based_residues": residue_counts("auth"),
     }
-    payload = {"summary": summary, "sites": detailed}
     report_path.write_text(
-        json.dumps(payload, indent=2), encoding="utf-8", newline="\n"
+        json.dumps({"summary": summary, "sites": detailed}, indent=2),
+        encoding="utf-8",
+        newline="\n",
     )
 
     print("=== coverage summary ===")
     print(json.dumps(summary, indent=2))
-    if offset_fixed:
-        print("constant-offset repairs (target, offset):", offset_fixed[:20])
     print("detailed report written to", report_path)
 
 
