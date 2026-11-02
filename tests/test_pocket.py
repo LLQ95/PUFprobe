@@ -166,6 +166,30 @@ def test_parse_p2rank_predictions():
     assert pockets[1].residue_keys == {("A", 8, "")}
 
 
+def test_parse_p2rank_predictions_padded_columns():
+    # P2Rank emits fixed-width, space-padded header names and values.
+    csv_text = (
+        "name     ,  rank,   score, probability, sas_points, surf_atoms,"
+        "   center_x,   center_y,   center_z, residue_ids, surf_atom_ids\n"
+        "pocket1  ,     1,    7.47,       0.392,         50,         30,"
+        "    11.0051,     9.7472,    37.1769, A_104 A_105, 360 629\n"
+        "pocket2  ,     2,    2.45,       0.067,         15,         11,"
+        "    -7.1128,     0.7546,    28.3970, A_194 A_51, 204 1319\n"
+    )
+    csv_path = Path("p2rank_padded.csv")
+    csv_path.write_text(csv_text, encoding="utf-8")
+    try:
+        pockets = pocket.parse_p2rank_predictions(csv_path)
+    finally:
+        csv_path.unlink()
+    assert [p.rank for p in pockets] == [1, 2]
+    assert pockets[0].name == "pocket1"
+    assert pockets[0].score == pytest.approx(7.47)
+    assert pockets[0].probability == pytest.approx(0.392)
+    assert pockets[0].residue_keys == {("A", 104, ""), ("A", 105, "")}
+    assert pockets[1].residue_keys == {("A", 194, ""), ("A", 51, "")}
+
+
 def test_parse_p2rank_predictions_missing_file():
     assert pocket.parse_p2rank_predictions(Path("absent.csv")) == []
 
