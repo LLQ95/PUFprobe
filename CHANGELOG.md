@@ -38,6 +38,10 @@ Keep a Changelog, and the project adheres to semantic versioning.
   to a FASTA file, using the stable HP id and global key in each header.
   `server/14_build_sequence_index.sh` builds an MMseqs2 index from the FASTA
   and runs an input sequence search against it.
+- The built database is published for browser use through Datasette Lite. The
+  SQLite file is hosted on the CORS-enabled `hpdb-data` branch and opened by a
+  `lite.datasette.io` URL, so it can be queried on the public web without a
+  Python server.
 
 ### Fixed
 

@@ -627,6 +627,15 @@ bash server/13_publish_datasette.sh /data/liushiwei/HPDB/hpdb.sqlite
 PUBLISH_TARGET=cloudrun SERVICE=hpdb bash server/13_publish_datasette.sh hpdb.sqlite
 ```
 
+A public instance needs no server when the database is loaded by Datasette Lite,
+which runs Datasette in the browser through WebAssembly. The built database is
+hosted on the CORS-enabled `hpdb-data` branch, and the following link opens it
+for read-only browsing and SQL queries without any login.
+
+```
+https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2FLLQ95%2FPUFprobe%2Fhpdb-data%2Fhpdb.sqlite
+```
+
 The protein sequences can be exported as a FASTA file and searched by an input
 sequence. Script 14 writes the FASTA from the SQLite file, builds an MMseqs2
 index in a `sequence_index` directory, and runs a sequence search when

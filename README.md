@@ -200,6 +200,17 @@ Chinese step-by-step runbook:
 - `00_setup_env.sh` → `01_download_dbs.sh` → `02_annotate.sh` →
   `03_run_pufprobe.sh` → `04_summary.sh`
 
+## Query the example database
+
+The Hypothetical Protein Database built from 16 reference genomes can be
+queried in a browser through Datasette Lite, which runs entirely client-side.
+Open the link below to browse the seven tables and run SQL without installing
+anything.
+
+```
+https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2FLLQ95%2FPUFprobe%2Fhpdb-data%2Fhpdb.sqlite
+```
+
 ## License
 
 PUFprobe is released under the MIT License. See [LICENSE](LICENSE).
