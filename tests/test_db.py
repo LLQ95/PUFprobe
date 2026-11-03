@@ -484,3 +484,35 @@ def test_get_neighbours_lists_relationships(workdir, tmp_path):
     assert len(neighbours) == 1
     assert neighbours[0]["neighbour_locus"] == "b0002"
     assert neighbours[0]["neighbour_product"] == "old enzyme"
+
+
+def test_db_query_cli_lookups(workdir, tmp_path):
+    from click.testing import CliRunner
+
+    from pufprobe.cli import cli
+    from pufprobe.db.build import build_database
+
+    db_path = tmp_path / "hpdb.sqlite"
+    build_database(workdir.root, db_path)
+    runner = CliRunner()
+    global_key = f"{SAMPLE_ID}@b0001"
+
+    cases = [
+        ["db", "query", "--db", str(db_path), "--summary"],
+        ["db", "query", "--db", str(db_path), "--id", "HP-000001"],
+        ["db", "query", "--db", str(db_path), "--text", "hypothetical"],
+        ["db", "query", "--db", str(db_path), "--family", "FAM_0001"],
+        ["db", "query", "--db", str(db_path), "--term", "PF00010"],
+        ["db", "query", "--db", str(db_path), "--neighbours", global_key],
+    ]
+    for args in cases:
+        result = runner.invoke(cli, args)
+        assert result.exit_code == 0, f"{args}: {result.output}"
+
+    missing = runner.invoke(
+        cli, ["db", "query", "--db", str(db_path), "--family", "NOPE"]
+    )
+    assert missing.exit_code != 0
+
+    no_lookup = runner.invoke(cli, ["db", "query", "--db", str(db_path)])
+    assert no_lookup.exit_code != 0
