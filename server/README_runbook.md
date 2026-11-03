@@ -647,6 +647,20 @@ bash server/14_build_sequence_index.sh /data/liushiwei/HPDB/hpdb.sqlite
 QUERY_FASTA=query.faa bash server/14_build_sequence_index.sh hpdb.sqlite
 ```
 
+When the server has a GPU and the full search databases, the whole run can be
+performed with one command rather than the separate steps above. Script 15
+prepares the inference-only ESMFold environment, downloads the reference
+pathogen panel, runs the eight stages on GPU with real ESM-2 embeddings and
+ESMFold structures, and builds the SQLite file. The search channels are
+detected from the databases that are present, and `BUILD_INDEX=1` adds the
+MMseqs2 sequence index. The same command is safe to restart after a failure
+because every stage and the NCBI download are guarded by completion markers.
+
+```bash
+conda run -n pufprobe bash server/15_run_hpdb_gpu.sh
+BUILD_INDEX=1 THREADS=64 conda run -n pufprobe bash server/15_run_hpdb_gpu.sh
+```
+
 ---
 
 ## Quick reference for common configuration variables

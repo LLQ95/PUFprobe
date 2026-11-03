@@ -42,6 +42,12 @@ Keep a Changelog, and the project adheres to semantic versioning.
   SQLite file is hosted on the CORS-enabled `hpdb-data` branch and opened by a
   `lite.datasette.io` URL, so it can be queried on the public web without a
   Python server.
+- `server/15_run_hpdb_gpu.sh` runs the complete HPDB workflow on a GPU server
+  in one command. It prepares the ESMFold environment, downloads the
+  reference pathogen panel, runs the eight stages with real embeddings and
+  structures, and builds the SQLite database, with the search channels
+  detected from the databases present. The stages and downloads are guarded
+  by completion markers, so an interrupted run can be restarted.
 
 ### Fixed
 
