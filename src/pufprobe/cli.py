@@ -2,7 +2,8 @@
 
 Eight pipeline subcommands (prepare, embed, fold, search, context, rank,
 report, annotate) share global options for the working directory, threads, CPU
-fallback, configuration and logging.
+fallback, configuration and logging. The db group builds and queries the HPDB
+SQLite database, and doctor reports the detected external environment.
 """
 
 from pathlib import Path
@@ -52,7 +53,8 @@ def cli(
         if help_requested:
             ctx.obj = None
             return
-        if ctx.invoked_subcommand == "doctor":
+        # doctor and db query do not need a populated working directory.
+        if ctx.invoked_subcommand in ("doctor", "db"):
             ctx.obj = Context(None, load_config(config_path))
             return
         raise click.UsageError("Missing option '--workdir' / '-w'.")
@@ -194,6 +196,73 @@ def doctor(obj: Context) -> None:
     import json
 
     click.echo(json.dumps(summary(), indent=2, ensure_ascii=False))
+
+
+@cli.group()
+def db() -> None:
+    """Build and query the HPDB SQLite database."""
+
+
+@db.command("build")
+@click.option("--output", "-o", required=True, type=click.Path(dir_okay=False, path_type=Path), help="Output SQLite file.")
+@click.option("--manifest", "manifest_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), help="Sampling manifest with taxonomy fields.")
+@click.option("--force", is_flag=True, default=False, help="Overwrite an existing database file.")
+@click.pass_obj
+def db_build(obj: Context, output: Path, manifest_path: Optional[Path], force: bool) -> None:
+    """Build a queryable SQLite database from the working directory."""
+    import json
+
+    from pufprobe.db.build import build_database
+
+    if obj.workdir is None:
+        raise click.UsageError("db build requires the global '--workdir' / '-w' option.")
+    if output.exists():
+        if not force:
+            raise click.UsageError(f"{output} exists; use --force to rebuild.")
+        output.unlink()
+    counts = build_database(
+        obj.workdir.root, output, manifest_path=manifest_path, config=obj.config
+    )
+    click.echo(json.dumps(counts, indent=2, sort_keys=True))
+
+
+@db.command("query")
+@click.option("--db", "db_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path), help="SQLite database file.")
+@click.option("--id", "identifier", default=None, help="HP id, global key, locus tag or protein id.")
+@click.option("--text", default=None, help="Substring search over product and species.")
+@click.option("--summary", "as_summary", is_flag=True, default=False, help="Print table and status counts.")
+@click.pass_obj
+def db_query(obj: Context, db_path: Path, identifier: Optional[str], text: Optional[str], as_summary: bool) -> None:
+    """Query a built database and print JSON."""
+    import json
+
+    from pufprobe.db.query import (
+        get_evidence,
+        get_functions,
+        get_protein,
+        search_text,
+        summary as query_summary,
+    )
+
+    if as_summary:
+        click.echo(json.dumps(query_summary(db_path), indent=2, sort_keys=True))
+        return
+    if identifier is not None:
+        protein = get_protein(db_path, identifier)
+        if protein is None:
+            raise click.ClickException(f"No protein matched '{identifier}'.")
+        global_key = protein["global_key"]
+        payload = {
+            "protein": protein,
+            "functions": get_functions(db_path, global_key),
+            "evidence": get_evidence(db_path, global_key),
+        }
+        click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    if text is not None:
+        click.echo(json.dumps(search_text(db_path, text), indent=2, ensure_ascii=False))
+        return
+    raise click.UsageError("Provide one of --id, --text or --summary.")
 
 
 def _collect_inputs(inputs: List[Path], input_list: Optional[Path]) -> List[Path]:

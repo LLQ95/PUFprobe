@@ -20,6 +20,16 @@ Keep a Changelog, and the project adheres to semantic versioning.
   residue is recorded, typically a disordered region) and `out_of_range` (the
   anchor falls outside the chain's author-number range), attributing the
   coverage loss to a concrete cause.
+- The new `pufprobe.db` package builds a queryable Hypothetical Protein Database
+  (HPDB) from a completed working directory. `schema.py` defines seven tables
+  (runs, proteins, families, functions, evidence, structures and genomic
+  context) with foreign keys and supporting indexes, `build.py` reads the frozen
+  stage outputs in a single deterministic transaction and tolerates partial
+  runs, and `query.py` provides read-only lookups. The `pufprobe db build` and
+  `pufprobe db query` commands expose the workflow, and the optional `db`
+  dependency installs Datasette.
+- `server/13_publish_datasette.sh` serves a built HPDB file through a local
+  read-only Datasette interface or publishes it to Cloud Run, Vercel or Fly.
 
 ## [0.10.1] - 2026-11-02
 

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ version = "0.10.1"
 description = "Second-stage functional inference for hypothetical proteins in bacterial genomes"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "LLQ95" }]
 keywords = [
     "bioinformatics",
@@ -19,7 +19,6 @@ keywords = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
@@ -41,6 +40,9 @@ cluster = [
     "igraph>=0.10",
     "leidenalg>=0.9",
 ]
+db = [
+    "datasette>=1.0",
+]
 full = [
     "torch>=2.0",
     "fair-esm>=2.0",
@@ -48,6 +50,7 @@ full = [
     "scikit-learn>=1.1",
     "igraph>=0.10",
     "leidenalg>=0.9",
+    "datasette>=1.0",
 ]
 test = [
     "pytest>=7.0",

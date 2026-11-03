@@ -580,6 +580,50 @@ and annotate together under 30 min.
 
 ---
 
+## Step 8: Build and publish the HPDB
+
+After the full cohort reaches the report stage, the working directory holds
+every frozen output the database builder needs. Install Datasette in the
+standalone environment, then build the SQLite file from the same working
+directory used by step 7. The manifest produced by the pathogen sampling script
+is passed so the proteins table carries species, phylum and gram stain.
+
+```bash
+conda run -n pufprobe pip install -e '.[db]'
+WD=/data/liushiwei/PUFprobe/runs/full_cohort
+pufprobe --workdir "$WD" db build \
+    --output /data/liushiwei/HPDB/hpdb.sqlite \
+    --manifest /data/liushiwei/pathogen_data/pathogen_manifest.json --force
+```
+
+The build prints one row count per table. The same command is deterministic and
+can be rerun after adding more samples; `--force` replaces the existing file.
+The runs table keeps the full configuration and a snapshot of the external tool
+versions, so a database can be traced back to the software that produced it.
+
+Three read-only lookups are available without opening Datasette. `--summary`
+reports table counts and the breakdown by status and gram stain, `--id` returns
+one protein with its accepted terms and raw evidence, and `--text` performs a
+substring search over product and species names.
+
+```bash
+pufprobe db query --db /data/liushiwei/HPDB/hpdb.sqlite --summary
+pufprobe db query --db /data/liushiwei/HPDB/hpdb.sqlite --id HP-000001
+pufprobe db query --db /data/liushiwei/HPDB/hpdb.sqlite --text kinase
+```
+
+For a browser interface, script 13 serves the file locally in immutable mode so
+the database cannot be edited through the web. Setting PUBLISH_TARGET deploys a
+public instance instead; the cloud targets need the matching CLI and account
+credentials described in the Datasette publishing guide.
+
+```bash
+bash server/13_publish_datasette.sh /data/liushiwei/HPDB/hpdb.sqlite
+PUBLISH_TARGET=cloudrun SERVICE=hpdb bash server/13_publish_datasette.sh hpdb.sqlite
+```
+
+---
+
 ## Quick reference for common configuration variables
 
 | Variable | Default | Meaning |
