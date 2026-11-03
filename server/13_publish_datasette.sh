@@ -39,9 +39,9 @@ trap 'rm -rf "$META_DIR"' EXIT
 case "$PUBLISH_TARGET" in
     local)
         echo "Serving $DB_FILE at http://$HOST:$PORT (Ctrl-C to stop)."
-        exec datasette serve "$DB_FILE" \
+        exec datasette serve \
             --host "$HOST" --port "$PORT" \
-            --metadata "$META_FILE" --immutable
+            --metadata "$META_FILE" --immutable "$DB_FILE"
         ;;
     cloudrun|vercel|fly)
         echo "Publishing $DB_FILE to $PUBLISH_TARGET as $SERVICE."

@@ -40,6 +40,10 @@ Keep a Changelog, and the project adheres to semantic versioning.
   longest sequence and earliest start. Duplicate predictions and evidence are
   removed, and one genomic context row is kept per neighbour relationship
   using the nearest segment boundary.
+- The Datasette dependency now tracks the stable 0.65 series because the 1.0
+  line is only published as alpha releases on PyPI. The local publishing
+  script passes the database path to `--immutable`, which expects an argument
+  rather than acting as a standalone flag.
 
 ## [0.10.1] - 2026-11-02
 
