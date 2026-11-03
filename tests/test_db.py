@@ -440,3 +440,47 @@ def test_build_deduplicates_repeated_global_keys(tmp_path):
     assert counts["functions"] == 1
     assert counts["evidence"] == 1
     assert counts["genomic_context"] == 1
+
+
+def test_get_family_lists_members(workdir, tmp_path):
+    from pufprobe.db.build import build_database
+    from pufprobe.db.query import get_family
+
+    db_path = tmp_path / "hpdb.sqlite"
+    build_database(workdir.root, db_path)
+
+    result = get_family(db_path, "FAM_0001")
+    assert result is not None
+    assert result["family"]["family_id"] == "FAM_0001"
+    assert len(result["members"]) == 1
+    assert result["members"][0]["locus_tag"] == "b0001"
+    assert get_family(db_path, "MISSING") is None
+
+
+def test_search_terms_finds_protein(workdir, tmp_path):
+    from pufprobe.db.build import build_database
+    from pufprobe.db.query import search_terms
+
+    db_path = tmp_path / "hpdb.sqlite"
+    build_database(workdir.root, db_path)
+
+    by_id = search_terms(db_path, "PF00010")
+    assert len(by_id) == 1
+    assert by_id[0]["locus_tag"] == "b0001"
+    by_name = search_terms(db_path, "helix-turn-helix")
+    assert len(by_name) == 1
+    assert by_name[0]["term_id"] == "PF00010"
+
+
+def test_get_neighbours_lists_relationships(workdir, tmp_path):
+    from pufprobe.db.build import build_database
+    from pufprobe.db.query import get_neighbours
+
+    db_path = tmp_path / "hpdb.sqlite"
+    build_database(workdir.root, db_path)
+
+    global_key = f"{SAMPLE_ID}@b0001"
+    neighbours = get_neighbours(db_path, global_key)
+    assert len(neighbours) == 1
+    assert neighbours[0]["neighbour_locus"] == "b0002"
+    assert neighbours[0]["neighbour_product"] == "old enzyme"

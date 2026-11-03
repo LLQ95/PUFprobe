@@ -30,6 +30,10 @@ Keep a Changelog, and the project adheres to semantic versioning.
   dependency installs Datasette.
 - `server/13_publish_datasette.sh` serves a built HPDB file through a local
   read-only Datasette interface or publishes it to Cloud Run, Vercel or Fly.
+- `pufprobe db query` accepts `--family`, `--term` and `--neighbours` in
+  addition to the protein, text and summary lookups. The family lookup lists
+  one family with its members, the term lookup finds proteins by term id or
+  term name, and the neighbour lookup lists the recorded genomic context.
 
 ### Fixed
 

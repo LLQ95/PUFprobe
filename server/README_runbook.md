@@ -601,15 +601,20 @@ can be rerun after adding more samples; `--force` replaces the existing file.
 The runs table keeps the full configuration and a snapshot of the external tool
 versions, so a database can be traced back to the software that produced it.
 
-Three read-only lookups are available without opening Datasette. `--summary`
+Several read-only lookups are available without opening Datasette. `--summary`
 reports table counts and the breakdown by status and gram stain, `--id` returns
 one protein with its accepted terms and raw evidence, and `--text` performs a
-substring search over product and species names.
+substring search over product and species names. `--family` lists one family
+with its members, `--term` finds proteins by term id or term name, and
+`--neighbours` lists the recorded genomic context for one global key.
 
 ```bash
 pufprobe db query --db /data/liushiwei/HPDB/hpdb.sqlite --summary
 pufprobe db query --db /data/liushiwei/HPDB/hpdb.sqlite --id HP-000001
 pufprobe db query --db /data/liushiwei/HPDB/hpdb.sqlite --text kinase
+pufprobe db query --db /data/liushiwei/HPDB/hpdb.sqlite --family FAM_0001
+pufprobe db query --db /data/liushiwei/HPDB/hpdb.sqlite --term PF00010
+pufprobe db query --db /data/liushiwei/HPDB/hpdb.sqlite --neighbours HP-000001
 ```
 
 For a browser interface, script 13 serves the file locally in immutable mode so

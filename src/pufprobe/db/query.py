@@ -125,3 +125,69 @@ def summary(db_path: Path) -> Dict[str, Any]:
         }
     finally:
         connection.close()
+
+
+def get_family(db_path: Path, family_id: str) -> Optional[Dict[str, Any]]:
+    """Return one family with every protein assigned to it."""
+    connection = _open(db_path)
+    try:
+        family = connection.execute(
+            "SELECT * FROM families WHERE family_id = ?", (family_id,)
+        ).fetchone()
+        if family is None:
+            return None
+        members = connection.execute(
+            """
+            SELECT hp_id, global_key, sample_id, locus_tag, protein_id, length,
+                   product, status, species, phylum, gram
+            FROM proteins WHERE family_id = ?
+            ORDER BY global_key
+            """,
+            (family_id,),
+        ).fetchall()
+        return {
+            "family": dict(family),
+            "members": [dict(row) for row in members],
+        }
+    finally:
+        connection.close()
+
+
+def search_terms(db_path: Path, text: str, limit: int = 100) -> List[Dict[str, Any]]:
+    """Find proteins whose term id or term name contains a substring."""
+    connection = _open(db_path)
+    try:
+        pattern = f"%{text}%"
+        rows = connection.execute(
+            """
+            SELECT p.hp_id, p.global_key, p.locus_tag, p.species, p.phylum,
+                   p.gram, f.term_type, f.term_id, f.term_name, f.confidence
+            FROM functions AS f
+            JOIN proteins AS p ON p.global_key = f.global_key
+            WHERE f.term_id LIKE ? OR f.term_name LIKE ?
+            ORDER BY f.term_type, f.term_id, p.global_key
+            LIMIT ?
+            """,
+            (pattern, pattern, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        connection.close()
+
+
+def get_neighbours(db_path: Path, global_key: str) -> List[Dict[str, Any]]:
+    """Return the recorded genomic neighbours for one protein."""
+    connection = _open(db_path)
+    try:
+        rows = connection.execute(
+            """
+            SELECT neighbour_locus, neighbour_product, neighbour_status,
+                   position, intergenic_bp, strand_match, coupled
+            FROM genomic_context WHERE global_key = ?
+            ORDER BY position, intergenic_bp, neighbour_locus
+            """,
+            (global_key,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        connection.close()

@@ -230,16 +230,24 @@ def db_build(obj: Context, output: Path, manifest_path: Optional[Path], force: b
 @click.option("--db", "db_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path), help="SQLite database file.")
 @click.option("--id", "identifier", default=None, help="HP id, global key, locus tag or protein id.")
 @click.option("--text", default=None, help="Substring search over product and species.")
+@click.option("--family", "family_id", default=None, help="List a family and its member proteins.")
+@click.option("--term", default=None, help="Substring search over functional term ids and names.")
+@click.option("--neighbours", default=None, help="List the genomic neighbours of a global key.")
 @click.option("--summary", "as_summary", is_flag=True, default=False, help="Print table and status counts.")
 @click.pass_obj
-def db_query(obj: Context, db_path: Path, identifier: Optional[str], text: Optional[str], as_summary: bool) -> None:
+def db_query(obj: Context, db_path: Path, identifier: Optional[str], text: Optional[str],
+             family_id: Optional[str], term: Optional[str], neighbours: Optional[str],
+             as_summary: bool) -> None:
     """Query a built database and print JSON."""
     import json
 
     from pufprobe.db.query import (
         get_evidence,
+        get_family,
         get_functions,
+        get_neighbours,
         get_protein,
+        search_terms,
         search_text,
         summary as query_summary,
     )
@@ -262,7 +270,21 @@ def db_query(obj: Context, db_path: Path, identifier: Optional[str], text: Optio
     if text is not None:
         click.echo(json.dumps(search_text(db_path, text), indent=2, ensure_ascii=False))
         return
-    raise click.UsageError("Provide one of --id, --text or --summary.")
+    if family_id is not None:
+        family_payload = get_family(db_path, family_id)
+        if family_payload is None:
+            raise click.ClickException(f"No family matched '{family_id}'.")
+        click.echo(json.dumps(family_payload, indent=2, ensure_ascii=False))
+        return
+    if term is not None:
+        click.echo(json.dumps(search_terms(db_path, term), indent=2, ensure_ascii=False))
+        return
+    if neighbours is not None:
+        click.echo(json.dumps(get_neighbours(db_path, neighbours), indent=2, ensure_ascii=False))
+        return
+    raise click.UsageError(
+        "Provide one of --id, --text, --family, --term, --neighbours or --summary."
+    )
 
 
 def _collect_inputs(inputs: List[Path], input_list: Optional[Path]) -> List[Path]:
