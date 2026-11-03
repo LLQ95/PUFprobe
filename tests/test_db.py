@@ -272,3 +272,171 @@ def test_partial_workdir_with_only_cds(workdir, tmp_path):
     assert counts["proteins"] == 2
     assert counts["families"] == 0
     assert counts["functions"] == 0
+
+
+def test_dedupe_protein_records_keeps_longest_with_sequence():
+    from pufprobe.db.build import _dedupe_protein_records
+
+    repeated = [
+        {
+            "sample_id": SAMPLE_ID,
+            "locus_tag": "b0009",
+            "protein_id": "NP_SHORT",
+            "sequence_aa": "M" * 20,
+            "start": 300,
+            "end": 360,
+        },
+        {
+            "sample_id": SAMPLE_ID,
+            "locus_tag": "b0009",
+            "protein_id": "NP_LONG",
+            "sequence_aa": "M" * 80,
+            "start": 100,
+            "end": 340,
+        },
+    ]
+    other = {
+        "sample_id": SAMPLE_ID,
+        "locus_tag": "b0010",
+        "protein_id": None,
+        "sequence_aa": "M" * 10,
+        "start": 1,
+        "end": 30,
+    }
+    result = _dedupe_protein_records(repeated + [other])
+    assert len(result) == 2
+    chosen = next(r for r in result if r["locus_tag"] == "b0009")
+    assert chosen["protein_id"] == "NP_LONG"
+    assert len(chosen["sequence_aa"]) == 80
+
+
+def test_dedupe_empty_pseudogene_keeps_earliest_segment():
+    from pufprobe.db.build import _dedupe_protein_records
+
+    records = [
+        {
+            "sample_id": SAMPLE_ID,
+            "locus_tag": "b0020",
+            "protein_id": None,
+            "sequence_aa": "",
+            "start": 500,
+            "end": 560,
+        },
+        {
+            "sample_id": SAMPLE_ID,
+            "locus_tag": "b0020",
+            "protein_id": None,
+            "sequence_aa": "",
+            "start": 100,
+            "end": 160,
+        },
+    ]
+    result = _dedupe_protein_records(records)
+    assert len(result) == 1
+    assert result[0]["start"] == 100
+
+
+def test_dedupe_predictions_keeps_one_per_global_key():
+    from pufprobe.db.build import _dedupe_predictions
+
+    predictions = [
+        {"sample_id": SAMPLE_ID, "locus_tag": "b0001", "terms": []},
+        {"sample_id": SAMPLE_ID, "locus_tag": "b0001", "terms": []},
+        {"sample_id": SAMPLE_ID, "locus_tag": "b0002", "terms": []},
+    ]
+    result = _dedupe_predictions(predictions)
+    assert len(result) == 2
+    assert [p["locus_tag"] for p in result] == ["b0001", "b0002"]
+
+
+def test_build_deduplicates_repeated_global_keys(tmp_path):
+    from pufprobe.db.build import build_database
+
+    wd = WorkDir(tmp_path / "run")
+    records = [
+        {
+            "sample_id": SAMPLE_ID,
+            "locus_tag": "b0001",
+            "protein_id": "NP_1",
+            "sequence_aa": "M" * 40,
+            "start": 100,
+            "end": 220,
+            "strand": "+",
+            "product": "enzyme",
+            "status": "annotated",
+            "contig": "NC_1",
+        },
+        {
+            "sample_id": SAMPLE_ID,
+            "locus_tag": "b0002",
+            "protein_id": "NP_2",
+            "sequence_aa": "M" * 40,
+            "start": 300,
+            "end": 420,
+            "strand": "+",
+            "product": "hypothetical protein",
+            "status": "hypothetical",
+            "contig": "NC_1",
+        },
+        {
+            "sample_id": SAMPLE_ID,
+            "locus_tag": "b0002",
+            "protein_id": "NP_2",
+            "sequence_aa": "M" * 40,
+            "start": 421,
+            "end": 500,
+            "strand": "+",
+            "product": "hypothetical protein",
+            "status": "hypothetical",
+            "contig": "NC_1",
+        },
+    ]
+    wd.path("prepare", "cds_records.json").write_text(
+        json.dumps(records), encoding="utf-8"
+    )
+
+    term = {
+        "term_type": "label",
+        "term_id": "b0002",
+        "term_name": "hypothetical protein",
+        "raw_score": 1.0,
+        "confidence": 0.6,
+        "go_depth": None,
+        "rationale": "",
+        "evidence": [
+            {
+                "channel": "context",
+                "target_id": "b0002",
+                "target_label": "hypothetical protein",
+                "score": 1.0,
+                "evalue": None,
+                "coverage": None,
+                "details": {"kind": "operon_coupling", "intergenic_bp": 1},
+            }
+        ],
+    }
+    payload = {
+        "predictions": [
+            {"sample_id": SAMPLE_ID, "locus_tag": "b0002", "terms": [dict(term)]},
+            {"sample_id": SAMPLE_ID, "locus_tag": "b0002", "terms": [dict(term)]},
+        ]
+    }
+    wd.path("report", "evidence.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+    neighbours = (
+        "sample_id\tlocus_tag\tfamily_id\tneighbour_locus\tneighbour_product\t"
+        "neighbour_status\tposition\tintergenic_bp\tstrand_match\tcoupled\n"
+        f"{SAMPLE_ID}\tb0002\t\tb0001\tenzyme\tannotated\tdownstream\t12\tTrue\t1\n"
+        f"{SAMPLE_ID}\tb0002\t\tb0001\tenzyme\tannotated\tdownstream\t200\tTrue\t0\n"
+    )
+    wd.path("context", "neighbours.tsv").write_text(
+        neighbours, encoding="utf-8"
+    )
+
+    counts = build_database(wd.root, tmp_path / "hpdb.sqlite")
+    assert counts["proteins"] == 2
+    assert counts["functions"] == 1
+    assert counts["evidence"] == 1
+    assert counts["genomic_context"] == 1

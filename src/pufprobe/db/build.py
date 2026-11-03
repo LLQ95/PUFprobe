@@ -92,6 +92,58 @@ def _insert_runs(connection: sqlite3.Connection, root: Path, config: Optional[Di
     )
 
 
+def _protein_priority(rec: dict) -> tuple:
+    """Deterministic ordering for choosing one row that shares a global key.
+
+    A record with a translated protein sequence is preferred, then the longest
+    sequence, which keeps the full-length isoform rather than an alternative
+    translation start, then the earliest start and widest span. The protein id
+    is a final tie breaker so the chosen row is identical on every run.
+    """
+    sequence = rec.get("sequence_aa") or ""
+    return (
+        0 if sequence else 1,
+        -len(sequence),
+        int(rec.get("start") or 0),
+        -int(rec.get("end") or 0),
+        str(rec.get("protein_id") or ""),
+    )
+
+
+def _dedupe_protein_records(records: List[dict]) -> List[dict]:
+    """Collapse rows sharing a global key to one deterministic record.
+
+    RefSeq GFF files can list several CDS rows for one locus tag. Rows with the
+    same GFF id represent a multi-segment or interrupted pseudogene, while rows
+    with distinct ids represent alternative translation starts. They describe
+    the same protein locus, so the proteins table keeps one row per global key.
+    """
+    best: Dict[str, dict] = {}
+    for rec in records:
+        key = gkey(rec["sample_id"], rec["locus_tag"])
+        current = best.get(key)
+        if current is None or _protein_priority(rec) < _protein_priority(current):
+            best[key] = rec
+    return list(best.values())
+
+
+def _dedupe_predictions(predictions: List[dict]) -> List[dict]:
+    """Keep one prediction per global key.
+
+    Duplicate CDS rows produce identical term predictions, so the extra copies
+    would only add redundant function and evidence rows.
+    """
+    seen: set = set()
+    unique: List[dict] = []
+    for prediction in predictions:
+        key = gkey(prediction["sample_id"], prediction["locus_tag"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(prediction)
+    return unique
+
+
 def _insert_proteins(
     connection: sqlite3.Connection,
     records: List[dict],
@@ -191,7 +243,8 @@ def _insert_predictions(connection: sqlite3.Connection, payload: Dict[str, Any])
     function_rows = []
     evidence_rows = []
     seen_functions = set()
-    for prediction in payload.get("predictions", []):
+    seen_evidence = set()
+    for prediction in _dedupe_predictions(payload.get("predictions", [])):
         global_key = gkey(prediction["sample_id"], prediction["locus_tag"])
         for term in prediction.get("terms", []):
             func_key = (global_key, term["term_type"], term["term_id"])
@@ -211,21 +264,24 @@ def _insert_predictions(connection: sqlite3.Connection, payload: Dict[str, Any])
                 )
             for ev in term.get("evidence", []):
                 channel = ev.get("channel", "")
-                evidence_rows.append(
-                    (
-                        global_key,
-                        term["term_type"],
-                        term["term_id"],
-                        channel,
-                        CHANNEL_GROUPS.get(channel),
-                        ev.get("target_id"),
-                        ev.get("target_label"),
-                        ev.get("score"),
-                        ev.get("evalue"),
-                        ev.get("coverage"),
-                        json.dumps(ev.get("details", {}), sort_keys=True),
-                    )
+                evidence_tuple = (
+                    global_key,
+                    term["term_type"],
+                    term["term_id"],
+                    channel,
+                    CHANNEL_GROUPS.get(channel),
+                    ev.get("target_id"),
+                    ev.get("target_label"),
+                    ev.get("score"),
+                    ev.get("evalue"),
+                    ev.get("coverage"),
+                    json.dumps(ev.get("details", {}), sort_keys=True),
                 )
+                # Multi-segment CDS rows can repeat the same evidence object.
+                if evidence_tuple in seen_evidence:
+                    continue
+                seen_evidence.add(evidence_tuple)
+                evidence_rows.append(evidence_tuple)
     connection.executemany(
         """
         INSERT INTO functions (
@@ -246,29 +302,53 @@ def _insert_predictions(connection: sqlite3.Connection, payload: Dict[str, Any])
     )
 
 
+def _intergenic_rank(raw: Any) -> int:
+    """Numeric intergenic distance for ordering; a missing value sorts last."""
+    text = str(raw)
+    if text.lstrip("-").isdigit():
+        return int(text)
+    return 10 ** 12
+
+
 def _insert_genomic_context(connection: sqlite3.Connection, path: Path) -> None:
     if not path.exists():
         return
-    rows = []
+    # A multi-segment CDS yields one neighbour row per segment with a different
+    # intergenic distance. Keep one row per neighbour relationship, choosing the
+    # nearest segment boundary, which is the geometry relevant to operon calls.
+    chosen: Dict[tuple, tuple] = {}
+    ordering: Dict[tuple, tuple] = {}
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         for row in reader:
             global_key = gkey(row["sample_id"], row["locus_tag"])
-            intergenic = row.get("intergenic_bp", "")
-            rows.append(
-                (
-                    global_key,
-                    row.get("sample_id"),
-                    row.get("locus_tag"),
-                    row.get("neighbour_locus"),
-                    row.get("neighbour_product"),
-                    row.get("neighbour_status"),
-                    row.get("position"),
-                    int(intergenic) if intergenic.lstrip("-").isdigit() else None,
-                    row.get("strand_match"),
-                    int(row.get("coupled", 0)) if str(row.get("coupled")).isdigit() else 0,
-                )
+            intergenic_raw = row.get("intergenic_bp", "")
+            dedup_key = (global_key, row.get("neighbour_locus"), row.get("position"))
+            record = (
+                global_key,
+                row.get("sample_id"),
+                row.get("locus_tag"),
+                row.get("neighbour_locus"),
+                row.get("neighbour_product"),
+                row.get("neighbour_status"),
+                row.get("position"),
+                int(intergenic_raw)
+                if str(intergenic_raw).lstrip("-").isdigit()
+                else None,
+                row.get("strand_match"),
+                int(row.get("coupled", 0))
+                if str(row.get("coupled")).isdigit()
+                else 0,
             )
+            rank = (
+                _intergenic_rank(intergenic_raw),
+                0 if str(row.get("coupled")).lower() == "true" else 1,
+                str(row.get("neighbour_product") or ""),
+            )
+            current_rank = ordering.get(dedup_key)
+            if current_rank is None or rank < current_rank:
+                ordering[dedup_key] = rank
+                chosen[dedup_key] = record
     connection.executemany(
         """
         INSERT INTO genomic_context (
@@ -276,7 +356,7 @@ def _insert_genomic_context(connection: sqlite3.Connection, path: Path) -> None:
             neighbour_status, position, intergenic_bp, strand_match, coupled)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        rows,
+        list(chosen.values()),
     )
 
 
@@ -294,6 +374,7 @@ def build_database(
         raise FileNotFoundError(
             f"Missing {cds_path}; run the prepare stage before building the database."
         )
+    records = _dedupe_protein_records(records)
 
     connection = connect(db_path)
     # The build is a controlled bulk import and supports partial runs, so a

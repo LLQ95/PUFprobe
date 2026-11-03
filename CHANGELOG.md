@@ -31,6 +31,16 @@ Keep a Changelog, and the project adheres to semantic versioning.
 - `server/13_publish_datasette.sh` serves a built HPDB file through a local
   read-only Datasette interface or publishes it to Cloud Run, Vercel or Fly.
 
+### Fixed
+
+- HPDB builds collapse CDS rows that share a global key. RefSeq GFF files can
+  list several CDS rows for one locus tag when a pseudogene is split into
+  segments or a gene has alternative translation starts. The build keeps one
+  protein row per global key, preferring a translated sequence, then the
+  longest sequence and earliest start. Duplicate predictions and evidence are
+  removed, and one genomic context row is kept per neighbour relationship
+  using the nearest segment boundary.
+
 ## [0.10.1] - 2026-11-02
 
 ### Fixed
