@@ -627,6 +627,17 @@ bash server/13_publish_datasette.sh /data/liushiwei/HPDB/hpdb.sqlite
 PUBLISH_TARGET=cloudrun SERVICE=hpdb bash server/13_publish_datasette.sh hpdb.sqlite
 ```
 
+The protein sequences can be exported as a FASTA file and searched by an input
+sequence. Script 14 writes the FASTA from the SQLite file, builds an MMseqs2
+index in a `sequence_index` directory, and runs a sequence search when
+`QUERY_FASTA` points to a query file.
+
+```bash
+pufprobe db export-fasta --db /data/liushiwei/HPDB/hpdb.sqlite --output hpdb_proteins.fasta
+bash server/14_build_sequence_index.sh /data/liushiwei/HPDB/hpdb.sqlite
+QUERY_FASTA=query.faa bash server/14_build_sequence_index.sh hpdb.sqlite
+```
+
 ---
 
 ## Quick reference for common configuration variables

@@ -287,6 +287,22 @@ def db_query(obj: Context, db_path: Path, identifier: Optional[str], text: Optio
     )
 
 
+@db.command("export-fasta")
+@click.option("--db", "db_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path), help="SQLite database file.")
+@click.option("--output", "-o", required=True, type=click.Path(dir_okay=False, path_type=Path), help="Output FASTA file.")
+@click.option("--force", is_flag=True, default=False, help="Overwrite an existing FASTA file.")
+def db_export_fasta(db_path: Path, output: Path, force: bool) -> None:
+    """Export every protein sequence as a FASTA file."""
+    from pufprobe.db.query import export_fasta
+
+    if output.exists():
+        if not force:
+            raise click.UsageError(f"{output} exists; use --force to overwrite.")
+        output.unlink()
+    count = export_fasta(db_path, output)
+    click.echo(f"Wrote {count} sequences to {output}.")
+
+
 def _collect_inputs(inputs: List[Path], input_list: Optional[Path]) -> List[Path]:
     paths = list(inputs)
     if input_list is not None:

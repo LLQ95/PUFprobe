@@ -34,6 +34,10 @@ Keep a Changelog, and the project adheres to semantic versioning.
   addition to the protein, text and summary lookups. The family lookup lists
   one family with its members, the term lookup finds proteins by term id or
   term name, and the neighbour lookup lists the recorded genomic context.
+- `pufprobe db export-fasta` writes the protein sequences of a built database
+  to a FASTA file, using the stable HP id and global key in each header.
+  `server/14_build_sequence_index.sh` builds an MMseqs2 index from the FASTA
+  and runs an input sequence search against it.
 
 ### Fixed
 

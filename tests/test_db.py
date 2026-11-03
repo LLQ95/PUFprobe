@@ -516,3 +516,20 @@ def test_db_query_cli_lookups(workdir, tmp_path):
 
     no_lookup = runner.invoke(cli, ["db", "query", "--db", str(db_path)])
     assert no_lookup.exit_code != 0
+
+
+def test_export_fasta_writes_sequences(workdir, tmp_path):
+    from pufprobe.db.build import build_database
+    from pufprobe.db.query import export_fasta
+
+    db_path = tmp_path / "hpdb.sqlite"
+    build_database(workdir.root, db_path)
+    fasta_path = tmp_path / "proteins.fasta"
+
+    count = export_fasta(db_path, fasta_path)
+    assert count == 2
+    text = fasta_path.read_text(encoding="utf-8")
+    assert ">HP-000001" in text
+    assert f"{SAMPLE_ID}@b0001" in text
+    # Sequences are wrapped at 60 residues; the 40-residue test fits one line.
+    assert "M" * 40 + "\n" in text

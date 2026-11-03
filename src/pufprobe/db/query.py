@@ -191,3 +191,33 @@ def get_neighbours(db_path: Path, global_key: str) -> List[Dict[str, Any]]:
         return [dict(row) for row in rows]
     finally:
         connection.close()
+
+
+def export_fasta(db_path: Path, output_path: Path, line_width: int = 60) -> int:
+    """Write every protein sequence to a FASTA file and return the count.
+
+    The header uses the stable HP id followed by the global key, so a sequence
+    hit can be resolved back to a row without relying on line order.
+    """
+    connection = _open(db_path)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    written = 0
+    try:
+        rows = connection.execute(
+            """
+            SELECT hp_id, global_key, sequence FROM proteins
+            WHERE sequence IS NOT NULL AND sequence != ''
+            ORDER BY hp_id
+            """
+        ).fetchall()
+        with output_path.open("w", encoding="utf-8", newline="\n") as handle:
+            for row in rows:
+                handle.write(f">{row['hp_id']} {row['global_key']}\n")
+                sequence = row["sequence"]
+                for start in range(0, len(sequence), line_width):
+                    handle.write(sequence[start:start + line_width] + "\n")
+                written += 1
+    finally:
+        connection.close()
+    return written
