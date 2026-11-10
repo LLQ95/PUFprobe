@@ -25,6 +25,7 @@
 # Useful overrides:
 #   THREADS=64                 external tool threads
 #   HPDB_ROOT=/path/to/hpdb    root for data, workdir and the database
+#   SEARCH_CHANNELS=mmseqs,foldseek  override channel autodetection
 #   EXTRA_CHANNELS=eggnog      comma-separated channels added to autodetection
 #   BUILD_INDEX=1              also build the MMseqs2 sequence index
 #   NCBI_API_KEY=...           higher NCBI rate limit (optional)
@@ -112,15 +113,23 @@ PY
 # ---------------------------------------------------------------------------
 # 4. Autodetect search channels from the databases that are present
 # ---------------------------------------------------------------------------
+# Channel selection. Set SEARCH_CHANNELS to override autodetection, e.g.
+# SEARCH_CHANNELS=mmseqs,foldseek to skip the slow serial hhblits channel.
 CHANNELS=()
-if [ -f "$DBDIR/uniref90.index" ] || [ -f "$DBDIR/swissprot.index" ]; then
-    CHANNELS+=(mmseqs)
-fi
-if [ -f "$DBDIR/foldseek_db.index" ]; then
-    CHANNELS+=(foldseek)
-fi
-if [ -f "$DBDIR/hhblits_db_hhm.ffdata" ]; then
-    CHANNELS+=(hhblits)
+if [ -n "${SEARCH_CHANNELS:-}" ]; then
+    for ch in $(echo "$SEARCH_CHANNELS" | tr ',' ' '); do
+        CHANNELS+=("$ch")
+    done
+else
+    if [ -f "$DBDIR/uniref90.index" ] || [ -f "$DBDIR/swissprot.index" ]; then
+        CHANNELS+=(mmseqs)
+    fi
+    if [ -f "$DBDIR/foldseek_db.index" ]; then
+        CHANNELS+=(foldseek)
+    fi
+    if [ -f "$DBDIR/hhblits_db_hhm.ffdata" ]; then
+        CHANNELS+=(hhblits)
+    fi
 fi
 if [ -n "${EXTRA_CHANNELS:-}" ]; then
     for extra in $(echo "$EXTRA_CHANNELS" | tr ',' ' '); do

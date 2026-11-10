@@ -47,7 +47,10 @@ Keep a Changelog, and the project adheres to semantic versioning.
   reference pathogen panel, runs the eight stages with real embeddings and
   structures, and builds the SQLite database, with the search channels
   detected from the databases present. The stages and downloads are guarded
-  by completion markers, so an interrupted run can be restarted.
+  by completion markers, so an interrupted run can be restarted. The
+  `SEARCH_CHANNELS` variable overrides autodetection, which lets a run use
+  the fast mmseqs and foldseek channels and skip the slow serial hhblits
+  channel.
 
 ### Fixed
 
