@@ -153,6 +153,54 @@ def test_build_populates_all_tables(workdir, tmp_path):
     assert counts["runs"] == 1
 
 
+def test_structure_engine_filled_when_metrics_omit_it(workdir, tmp_path):
+    import sqlite3
+
+    from pufprobe.db.build import build_database
+
+    families = [
+        {
+            "family_id": "FAM_0001",
+            "representative_key": f"{SAMPLE_ID}@b0001",
+            "members": [f"{SAMPLE_ID}@b0001"],
+            "representative_seq": "M" * 40,
+            "size": 1,
+            "lineage_width": 1,
+            "metrics": {"sample_distribution": {SAMPLE_ID: 1}},
+            "structure_path": "04_fold/structures/FAM_0001.pdb",
+            "plddt": 82.0,
+            "fold_status": "folded",
+            "novel_score": 0.3,
+            "priority_score": 0.5,
+        },
+        {
+            "family_id": "FAM_0002",
+            "representative_key": f"{SAMPLE_ID}@b0002",
+            "members": [f"{SAMPLE_ID}@b0002"],
+            "representative_seq": "M" * 1200,
+            "size": 1,
+            "lineage_width": 1,
+            "metrics": {"sample_distribution": {SAMPLE_ID: 1}},
+            "structure_path": None,
+            "plddt": None,
+            "fold_status": "skipped",
+            "novel_score": 0.3,
+            "priority_score": 0.5,
+        },
+    ]
+    workdir.path("cluster", "families.json").write_text(
+        json.dumps(families), encoding="utf-8"
+    )
+    db_path = tmp_path / "hpdb.sqlite"
+    build_database(workdir.root, db_path, config=load_config(None))
+
+    con = sqlite3.connect(db_path)
+    rows = dict(con.execute("SELECT family_id, engine FROM structures").fetchall())
+    con.close()
+    assert rows["FAM_0001"] == "esmfold"
+    assert rows["FAM_0002"] is None
+
+
 def test_proteins_get_hp_ids_and_taxonomy(workdir, tmp_path):
     from pufprobe.db.build import build_database
     from pufprobe.db.query import get_protein

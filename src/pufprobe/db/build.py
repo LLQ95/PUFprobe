@@ -211,10 +211,16 @@ def _insert_families(connection: sqlite3.Connection, families: List[dict]) -> No
                 fam.get("priority_score"),
             )
         )
+        engine = fam.get("metrics", {}).get("engine") if fam.get("metrics") else None
+        # The fold stage does not persist the engine in families.json. The GPU
+        # pipeline only runs ESMFold, so a produced structure is attributed to
+        # it here; a skipped family keeps a null engine.
+        if engine is None and fam.get("fold_status") in ("folded", "low_confidence"):
+            engine = "esmfold"
         structure_rows.append(
             (
                 fam["family_id"],
-                fam.get("metrics", {}).get("engine") if fam.get("metrics") else None,
+                engine,
                 fam.get("fold_status"),
                 fam.get("plddt"),
                 fam.get("structure_path"),

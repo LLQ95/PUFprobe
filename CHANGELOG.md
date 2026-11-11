@@ -65,6 +65,10 @@ Keep a Changelog, and the project adheres to semantic versioning.
   line is only published as alpha releases on PyPI. The local publishing
   script passes the database path to `--immutable`, which expects an argument
   rather than acting as a standalone flag.
+- The structures table now records the folding engine for every produced
+  structure. The fold stage does not persist the engine in families.json, so a
+  family with status folded or low_confidence is attributed to ESMFold during
+  the build, while a skipped family keeps a null engine.
 
 ## [0.10.1] - 2026-11-02
 
